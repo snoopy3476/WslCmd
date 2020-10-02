@@ -66,7 +66,7 @@ exit /b 0
     set WSLCMDLINE=!WSLCMDLINE! %ARG%
   )
 
-  
+
   exit /b 0
 
 
@@ -87,28 +87,34 @@ exit /b 0
 
   :: branches
   if "%OP%" == "new" (
-    call :management-mode_new %2
+    call :management-mode_new %*
+  ) else if "%OP%" == "add" (
+    call :management-mode_new %*
+  ) else if "%OP%" == "ln" (
+    call :management-mode_new %*
   ) else if "%OP%" == "del" (
-    call :management-mode_del %2
+    call :management-mode_del %*
+  ) else if "%OP%" == "rm" (
+    call :management-mode_del %*
   ) else if "%OP%" == "list" (
     call :management-mode_list
   ) else (
-    echo HELP OP
+    call :management-mode_help
   )
-    
+
   exit /b 0
 
 
 :management-mode_new
 
   :: arg check
-  if "%~n1" == "" (
-    echo usage: %~n0 new [linux-command-to-link]
+  if "%~n2" == "" (
+    echo usage: %~n0 %~n1 [linux-command-to-link]
     exit /b 0
   )
 
   :: create new symlink
-  mklink "%~dp0%~n1.bat" "%~dp0%~n0.bat" || (
+  mklink "%~dp0%~n2.bat" "%~dp0%~n0.bat" || (
     echo %~n0: ERROR: Failed to create a command symlink '%~n1'.
     echo                 Please check if you either enabled 'Developer Mode' on Windows,
     echo                 or executed the command with admin privilege.
@@ -124,14 +130,14 @@ exit /b 0
 :management-mode_del
 
   :: arg check
-  if "%~n1" == "" (
-    echo usage: %~n0 del [linux-command-to-delete]
+  if "%~n2" == "" (
+    echo usage: %~n0 %~n1 [linux-command-to-delete]
     call :management-mode_list
     exit /b 0
   )
 
   :: delete existing symlink
-  del "%~dp0%~n1.bat" || (
+  del "%~dp0%~n2.bat" || (
     echo %~n0: ERROR: Failed to delete a command symlink '%~n1'.
     echo                 Please check if you have enough privilege to delete.
   )
@@ -165,5 +171,31 @@ exit /b 0
 
   exit /b 0
 
+
+:management-mode_help
+
+  :: help msg
+  echo usage: %~n0 ^<operation^> [^<arg^>]
+  echo.
+  echo  ^<operation^>
+  echo.
+  echo    - Create a new command link
+  echo.
+  echo        %~n0 new ^<command-name^>
+  echo        %~n0 add ^<command-name^>
+  echo        %~n0 ln ^<command-name^>
+  echo.
+  echo    - Delete an existing command link
+  echo.
+  echo        %~n0 del ^<command-name^>
+  echo        %~n0 rm ^<command-name^>
+  echo.
+  echo    - List all existing command links
+  echo.
+  echo        %~n0 list
+  echo.
+
+
+  exit /b 0
 
 

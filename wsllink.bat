@@ -11,9 +11,12 @@
 setlocal EnableDelayedExpansion
 
 :: binary name
+set SCRIPTNAME="wsllink"
 set WSLCMDLINE="%~n0"
 
-if not %WSLCMDLINE% == "wsllink" (
+
+:: branch modes
+if not %WSLCMDLINE% == %SCRIPTNAME% (
   :: execution mode
   call :execution-mode %*
 ) else (
@@ -32,23 +35,32 @@ exit /b 0
 :::::: EXECUTION MODE ::::::
 
 
+
 :execution-mode
+
+  :: check GUI exec
+  set GUIARG=
+  if %WSLCMDLINE:~1,1% == . (
+    set WSLCMDLINE="!WSLCMDLINE:~2,-1!"
+    set GUIARG="tmux" "new" "-d"
+  )
 
   :: append args to cmdline
   for %%G in (%*) do (call :execution-mode_append-arg %%G)
 
   :: execute cmdline
-  wsl -- . /etc/profile; . $HOME/.profile; %WSLCMDLINE%
+  wsl -- . /etc/profile; . $HOME/.profile; %GUIARG% %WSLCMDLINE%
   ::echo %WSLCMDLINE%
 
   exit /b 0
 
 
+
 :execution-mode_append-arg
+
   set ARG=%*
   :: convert all \ to / (for relative path args)
   set ARG=%ARG:\=/%
-
   :: remove all doublequotes for test
   set ARGNOQUOTE=%ARG:"=%
   ::"
@@ -78,12 +90,11 @@ exit /b 0
 :::::: MANAGEMENT MODE ::::::
 
 
+
 :management-mode
 
   :: trim all doublequotes for %1, to prevent error
-  set OP="%1"
-  set OP=%OP:"=%
-  ::"
+  set OP=%~1
 
   :: branches
   if "%OP%" == "new" (
@@ -105,19 +116,49 @@ exit /b 0
   exit /b 0
 
 
+
 :management-mode_new
 
   :: arg check
-  if "%~n2" == "" (
-    echo usage: %~n0 %~n1 [linux-command-to-link]
+  set CMDNAME=%~2
+  if not defined CMDNAME (
+    echo usage: %~n0 %~1 [linux-command-to-link]
+    exit /b 0
+  )
+  if "%CMDNAME%" == %SCRIPTNAME% (
+    echo %~n0: ERROR: '%CMDNAME%' is invalid.
+    exit /b 0
+  )
+  if exist "%~dp0%CMDNAME%.bat" (
+    echo %~n0: ERROR: '%CMDNAME%.bat' already exists.
     exit /b 0
   )
 
+
+  :: set GUI exec flag
+  set GUIEXEC=
+  if %CMDNAME:~0,1% == . (
+    set GUIEXEC=1
+  )
+
+
   :: create new symlink
-  mklink "%~dp0%~n2.bat" "%~dp0%~n0.bat" || (
-    echo %~n0: ERROR: Failed to create a command symlink '%~n1'.
+  mklink "%~dp0%CMDNAME%.bat" "%~n0.bat" || (
+    echo %~n0: ERROR: Failed to create a command symlink '%CMDNAME%.bat'.
     echo                 Please check if you either enabled 'Developer Mode' on Windows,
     echo                 or executed the command with admin privilege.
+  )
+
+
+  :: create new symlink for GUI (execute on explorer)
+  if defined GUIEXEC (
+    if not exist "%~dp0%CMDNAME%.cmd" (
+      mklink "%~dp0%CMDNAME%.cmd" "%CMDNAME%.bat" || (
+        echo %~n0: ERROR: Failed to create a command symlink '%CMDNAME%.cmd'.
+        echo                 Please check if you either enabled 'Developer Mode' on Windows,
+        echo                 or executed the command with admin privilege.
+      )
+    )
   )
 
   :: print result symlink list
@@ -125,21 +166,50 @@ exit /b 0
 
 
   exit /b 0
+
 
 
 :management-mode_del
 
   :: arg check
-  if "%~n2" == "" (
+  set CMDNAME=%~2
+  if not defined CMDNAME (
     echo usage: %~n0 %~n1 [linux-command-to-delete]
     call :management-mode_list
     exit /b 0
   )
+  if "%CMDNAME%" == %SCRIPTNAME% (
+    echo %~n0: ERROR: '%CMDNAME%' is invalid.
+    exit /b 0
+  )
+  if not exist "%~dp0%CMDNAME%.bat" (
+    echo %~n0: ERROR: '%CMDNAME%.bat' does not exist.
+    exit /b 0
+  )
+
+
+  :: set GUI exec flag
+  set GUIEXEC=
+  if %CMDNAME:~0,1% == . (
+    set GUIEXEC=1
+  )
+  
 
   :: delete existing symlink
-  del "%~dp0%~n2.bat" || (
-    echo %~n0: ERROR: Failed to delete a command symlink '%~n1'.
+  del "%~dp0%CMDNAME%.bat" || (
+    echo %~n0: ERROR: Failed to delete a command symlink '%CMDNAME%.bat'.
     echo                 Please check if you have enough privilege to delete.
+  )
+
+
+  :: delete existing symlink for GUI (execute on explorer)
+  if defined GUIEXEC (
+    if exist "%~dp0%CMDNAME%.cmd" (
+      del "%~dp0%CMDNAME%.cmd" || (
+        echo %~n0: ERROR: Failed to delete a command symlink '%CMDNAME%.cmd'.
+        echo                 Please check if you have enough privilege to delete.
+      )
+    )
   )
 
   :: print result symlink list
@@ -149,10 +219,11 @@ exit /b 0
   exit /b 0
 
 
+
 :management-mode_list
 
   :: pattern string
-  set LINK_PATH=%~dp0%~n0.bat
+  set LINK_PATH=%~n0.bat
   set LINK_PATH=\[%LINK_PATH:\=\\%\]
 
   :: build symlink list
@@ -170,6 +241,7 @@ exit /b 0
   echo %LINK_LIST%
 
   exit /b 0
+
 
 
 :management-mode_help

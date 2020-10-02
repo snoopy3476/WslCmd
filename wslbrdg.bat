@@ -1,10 +1,18 @@
 @echo off
-setlocal EnableDelayedExpansion
+
+
+
+
+
+
 
 :::::: MAIN ROUTINE ::::::
 
+setlocal EnableDelayedExpansion
+
 :: binary name
 set WSLCMDLINE="%~n0"
+
 if not %WSLCMDLINE% == "wslbrdg" (
   :: execution mode
   call :execution-mode %*
@@ -81,7 +89,7 @@ exit /b 0
   if "%OP%" == "new" (
     call :management-mode_new %2
   ) else if "%OP%" == "del" (
-    echo DELETE OP
+    call :management-mode_del %2
   ) else if "%OP%" == "list" (
     call :management-mode_list
   ) else (
@@ -92,12 +100,44 @@ exit /b 0
 
 
 :management-mode_new
-  
+
+  :: arg check
+  if "%~n1" == "" (
+    echo usage: %~n0 new [linux-command-to-link]
+    exit /b 0
+  )
+
+  :: create new symlink
   mklink "%~dp0%~n1.bat" "%~dp0%~n0.bat" || (
-    echo %~n0: ERROR: Failed to creating a command symlink '%~n1'.
+    echo %~n0: ERROR: Failed to create a command symlink '%~n1'.
     echo                 Please check if you either enabled 'Developer Mode' on Windows,
     echo                 or executed the command with admin privilege.
   )
+
+  :: print result symlink list
+  call :management-mode_list
+
+
+  exit /b 0
+
+
+:management-mode_del
+
+  :: arg check
+  if "%~n1" == "" (
+    echo usage: %~n0 del [linux-command-to-delete]
+    call :management-mode_list
+    exit /b 0
+  )
+
+  :: delete existing symlink
+  del "%~dp0%~n1.bat" || (
+    echo %~n0: ERROR: Failed to delete a command symlink '%~n1'.
+    echo                 Please check if you have enough privilege to delete.
+  )
+
+  :: print result symlink list
+  call :management-mode_list
 
 
   exit /b 0
@@ -120,6 +160,7 @@ exit /b 0
     )
   )
 
+  echo.
   echo %LINK_LIST%
 
   exit /b 0

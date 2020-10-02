@@ -4,13 +4,12 @@ setlocal EnableDelayedExpansion
 :::::: MAIN ROUTINE ::::::
 
 :: binary name
-set WSLCMDLINE=%~n0
-
-if not "%WSLCMDLINE%" == "wslbrdg" (
-    :: Execution Mode
+set WSLCMDLINE="%~n0"
+if not %WSLCMDLINE% == "wslbrdg" (
+  :: execution mode
   call :execution-mode %*
 ) else (
-  :: Management Mode
+  :: management mode
   call :management-mode %*
 )
 
@@ -43,7 +42,8 @@ exit /b 0
   set ARG=%ARG:\=/%
 
   :: remove all doublequotes for test
-  set ARGNOQUOTE=%ARG:"=%"
+  set ARGNOQUOTE=%ARG:"=%
+  ::"
   :: extract first 3 chars
   set ARGHEAD=%ARGNOQUOTE:~0,3%
   :: check if starts with drive pattern (absolute path arg)
@@ -72,11 +72,17 @@ exit /b 0
 
 :management-mode
 
-  if "%1" == "new" (
+  :: trim all doublequotes for %1, to prevent error
+  set OP="%1"
+  set OP=%OP:"=%
+  ::"
+
+  :: branches
+  if "%OP%" == "new" (
     call :management-mode_new %2
-  ) else if "%1" == "del" (
+  ) else if "%OP%" == "del" (
     echo DELETE OP
-  ) else if "%1" == "list" (
+  ) else if "%OP%" == "list" (
     call :management-mode_list
   ) else (
     echo HELP OP
@@ -99,11 +105,22 @@ exit /b 0
 
 :management-mode_list
 
+  :: pattern string
   set LINK_PATH=%~dp0%~n0.bat
   set LINK_PATH=\[%LINK_PATH:\=\\%\]
-  set LINK_PATH | dir /AL %~dp0 | findstr /C:"%LINK_PATH%"
-  
 
+  :: build symlink list
+  set LINK_LIST=[Symlink-List]
+  for /F "tokens=2 delims=>[" %%G in ('dir /AL %~dp0 ^| findstr /E /C:"%LINK_PATH%"') do (
+    set LINK_LIST=!LINK_LIST! %%G
+
+    :: trim the extension if there is
+    if "!LINK_LIST:~-5,-1!" == ".bat" (
+      set LINK_LIST=!LINK_LIST:~0,-5!
+    )
+  )
+
+  echo %LINK_LIST%
 
   exit /b 0
 

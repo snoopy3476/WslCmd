@@ -13,7 +13,7 @@ setlocal EnableDelayedExpansion
 :: binary name
 set WSLCMDLINE="%~n0"
 
-if not %WSLCMDLINE% == "wslbrdg" (
+if not %WSLCMDLINE% == "wsllink" (
   :: execution mode
   call :execution-mode %*
 ) else (

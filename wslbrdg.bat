@@ -32,6 +32,7 @@ exit /b 0
 
   :: execute cmdline
   wsl -- . /etc/profile; . $HOME/.profile; %WSLCMDLINE%
+  ::echo %WSLCMDLINE%
 
   exit /b 0
 
@@ -40,11 +41,9 @@ exit /b 0
   set ARG=%*
   :: convert all \ to / (for relative path args)
   set ARG=%ARG:\=/%
-  :: escape all doublequotes
-  set ARG=%ARG:"=\"%
 
-  :: remove all doublequotes
-  set ARGNOQUOTE=%ARG:\"=%
+  :: remove all doublequotes for test
+  set ARGNOQUOTE=%ARG:"=%"
   :: extract first 3 chars
   set ARGHEAD=%ARGNOQUOTE:~0,3%
   :: check if starts with drive pattern (absolute path arg)
@@ -53,7 +52,7 @@ exit /b 0
   :: append arg
   if not ERRORLEVEL 1 (
     :: if windows absolute path
-    set WSLCMDLINE=!WSLCMDLINE! ^$^(/bin/wslpath %ARG%^)
+    set WSLCMDLINE=!WSLCMDLINE! "^$^(/bin/wslpath %ARG%^)"
   ) else (
     :: if relative path, options, etc.
     set WSLCMDLINE=!WSLCMDLINE! %ARG%
@@ -78,7 +77,7 @@ exit /b 0
   ) else if "%1" == "del" (
     echo DELETE OP
   ) else if "%1" == "list" (
-    echo LIST OP
+    call :management-mode_list
   ) else (
     echo HELP OP
   )
@@ -97,6 +96,16 @@ exit /b 0
 
   exit /b 0
 
+
+:management-mode_list
+
+  set LINK_PATH=%~dp0%~n0.bat
+  set LINK_PATH=\[%LINK_PATH:\=\\%\]
+  set LINK_PATH | dir /AL %~dp0 | findstr /C:"%LINK_PATH%"
+  
+
+
+  exit /b 0
 
 
 

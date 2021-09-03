@@ -18,10 +18,10 @@ set WSLCMDLINE="%~n0"
 :: branch modes
 if not %WSLCMDLINE% == %SCRIPTNAME% (
   :: execution mode
-  call :execution-mode %*
+  call :execution-mode %%*
 ) else (
   :: management mode
-  call :management-mode %*
+  call :management-mode %%*
 )
 
 exit /b 0
@@ -50,7 +50,7 @@ exit /b 0
 
   :: execute cmdline
   wsl -- . /etc/profile; . $HOME/.profile; %GUIARG% %WSLCMDLINE%
-  ::echo %WSLCMDLINE%
+  :: echo %WSLCMDLINE%
 
   exit /b 0
 
@@ -59,8 +59,9 @@ exit /b 0
 :execution-mode_append-arg
 
   set ARG=%*
+  
   :: convert all \ to / (for relative path args)
-  set ARG=%ARG:\=/%
+  call :execution-mode_append-arg_slash %%*
   :: remove all doublequotes for test
   set ARGNOQUOTE=%ARG:"=%
   ::"
@@ -84,6 +85,27 @@ exit /b 0
 
 
 
+:execution-mode_append-arg_slash
+
+  set ARG=%*
+  
+  :: encode {, }, \\ into sequence of {, }
+  set ARG=%ARG:{={{{%
+  set ARG=%ARG:}={{}%
+  set ARG=%ARG:\\={}}%
+
+  :: convert remaining \ (non-escaped back slash) to /
+  set ARG=%ARG:\=/%
+
+  :: recover {, }, \\ (change \\ to \)
+  set ARG=%ARG:{}}=\%
+  set ARG=%ARG:{{}=}%
+  set ARG=%ARG:{{{={%
+
+  exit /b 0
+
+
+
 
 
 
@@ -98,15 +120,15 @@ exit /b 0
 
   :: branches
   if "%OP%" == "new" (
-    call :management-mode_new %*
+    call :management-mode_new %%*
   ) else if "%OP%" == "add" (
-    call :management-mode_new %*
+    call :management-mode_new %%*
   ) else if "%OP%" == "ln" (
-    call :management-mode_new %*
+    call :management-mode_new %%*
   ) else if "%OP%" == "del" (
-    call :management-mode_del %*
+    call :management-mode_del %%*
   ) else if "%OP%" == "rm" (
-    call :management-mode_del %*
+    call :management-mode_del %%*
   ) else if "%OP%" == "list" (
     call :management-mode_list
   ) else (

@@ -60,24 +60,24 @@
     - `wsllink new .emacs`        :: (Create new link to WSL command 'emacs')
     - `.emacs bin\wsllink.bat`    :: (run 'emacs' at background)
 - You can make a shortcut link (.lnk) to the command file `.(command-name).cmd` (NOT a `.(command-name).bat` file!) or run it directly, to run GUI programs with mouse click
-  - Ex) Set WSL GUI program in Windows start menu as Windows program
-    1. Go to the folder where the WslLink script exists
-    2. Create a shortcut to `.(command-name).cmd` file manually with mouse right click
-        - Change the file name as you want
-        - Set a icon of the link file if you want
-        - Set additional binary arguments for the link file if you want
-    3. Open the 'Windows start menu' folder
-        - Press `[Windows key] + [R]` keys
-        - Enter `shell:Start Menu`
-        - Press `[Enter]` key
-    4. Move the created shortcut in step 2 to the start menu folder
-    5. You can now:
-        - Search and place the WSL GUI program at Windows start menu!
+  - Ex)
+    - Set WSL GUI program in Windows start menu as Windows program
+      1. Go to the folder where the WslLink script exists
+      2. Create a shortcut to `.(command-name).cmd` file manually with mouse right click
+          - Change the file name as you want
+          - Set a icon of the link file if you want
+          - Set additional binary arguments for the link file if you want
+      3. Open the 'Windows start menu' folder
+          - Press `[Windows key] + [R]` keys
+          - Enter `shell:Start Menu`
+          - Press `[Enter]` key
+      4. Move the created shortcut in step 2 to the start menu folder
+      5. You can now Search and place the WSL GUI program at Windows start menu
           - Press `[Windows key]` key to open the start menu
           - Enter the name of the link file you made when the start menu is appeared
           - Mouse right click at the searched program, then pin to start menu
-        - Set the default program of some file extensions to `.(command-name).cmd`, so that WSL program can open files at Windows file explorer directly!
-          - If a file is executed through Windows file explorer, the file path is inserted as cmdline arguments, which is compatible with this script
+    - Set the default program (Open with...) to `.(command-name).cmd` for some file-extensions
+      - After that, a WSL program can open a file directly if you double click the file at Windows file explorer
 
 
 ### Notes for escaping string

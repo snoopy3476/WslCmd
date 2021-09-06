@@ -20,16 +20,16 @@
 - Enable 'Developer Mode' of Windows, before running the script (which is needed for creating symlink)
   - This may be skipped, but then the command management jobs below (creating/deleting commands) should be run as administrator
 - Download and move 'wsllink.bat' script to Windows 'PATH' dir
-  - It is recommended to create new directory inside the current Windows user home, and add the path to 'PATH' environment variables (ex. `C:\Users\(user-home)\bin`)
+  - It is recommended to create new directory inside the current Windows user home, and add the path to 'PATH' environment variables (ex. `C:\Users\(user-home)\bin` (`%USERPROFILE%\bin`))
     - Make directory
-      - *Ex)* `mkdir C:\Users\(user-home)\bin`
+      - *Ex)* `mkdir "%USERPROFILE%\bin"`
     - Go to System Properties
       - Press `[Windows key] + [R]` keys
       - Enter `SystemPropertiesAdvanced`
       - Press `[Enter]` key
     - Click 'Environment Variables'
     - Double click 'Path' at user environment variable region, then add a new path inside it
-      - *Ex)* `C:\Users\(user-home)\bin`
+      - *Ex)* `%USERPROFILE%\bin`
     
 
 ## Usage

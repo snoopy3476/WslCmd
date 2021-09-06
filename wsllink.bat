@@ -117,23 +117,53 @@ exit /b 0
 
   :: trim all doublequotes for %1, to prevent error
   set OP=%~1
+  set OP_BRANCH=
 
-  :: branches
-  if "%OP%" == "new" (
-    call :management-mode_new %%*
-  ) else if "%OP%" == "add" (
-    call :management-mode_new %%*
-  ) else if "%OP%" == "ln" (
-    call :management-mode_new %%*
-  ) else if "%OP%" == "del" (
-    call :management-mode_del %%*
-  ) else if "%OP%" == "rm" (
-    call :management-mode_del %%*
-  ) else if "%OP%" == "list" (
+  if "%OP%" == "new" set OP_BRANCH=n
+  if "%OP%" == "add" set OP_BRANCH=n
+  if "%OP%" == "ln" set OP_BRANCH=n
+  if "%OP%" == "del" set OP_BRANCH=d
+  if "%OP%" == "rm" set OP_BRANCH=d
+  if "%OP%" == "list" set OP_BRANCH=l
+
+
+
+  if defined OP_BRANCH (
+
+
+    :: if mod mode (iterate for all args)
+    if not "%OP_BRANCH%" == "l" (
+
+      set ARG=%~2
+      if not defined ARG (
+        echo usage: %~n0 %~1 [command-name-1] [command-name-2] ...
+        exit /b 0
+      )
+    
+      :: iterate for all arguments except the first one
+      set ARG1_PASSED=
+      for %%G in (%*) do (
+        if defined ARG1_PASSED (
+          if "%OP_BRANCH%" == "n" ( call :management-mode_new %%G ) ^
+          else if "%OP_BRANCH%" == "d" ( call :management-mode_del %%G )
+        ) else (
+          set ARG1_PASSED=1
+        )
+      )
+      echo.
+    )
+
+
+    :: print result symlink list
     call :management-mode_list
+
+
   ) else (
+  
     call :management-mode_help
+    
   )
+  
 
   exit /b 0
 
@@ -141,22 +171,8 @@ exit /b 0
 
 :management-mode_new
 
-  :: arg check
-  set CMDNAME=%~2
-  if not defined CMDNAME (
-    echo usage: %~n0 %~1 [linux-command-to-link]
-    exit /b 0
-  )
-  if "%CMDNAME%" == %SCRIPTNAME% (
-    echo %~n0: ERROR: '%CMDNAME%' is invalid.
-    exit /b 0
-  )
-  if exist "%~dp0%CMDNAME%.bat" (
-    echo %~n0: ERROR: '%CMDNAME%.bat' already exists.
-    exit /b 0
-  )
-
-
+  set CMDNAME=%~1
+  
   :: set GUI exec flag
   set GUIEXEC=
   if %CMDNAME:~0,1% == . (
@@ -164,28 +180,61 @@ exit /b 0
   )
 
 
-  :: create new symlink
-  mklink "%~dp0%CMDNAME%.bat" "%~n0.bat" || (
-    echo %~n0: ERROR: Failed to create a command symlink '%CMDNAME%.bat'.
-    echo                 Please check if you either enabled 'Developer Mode' on Windows,
-    echo                 or executed the command with admin privilege.
-  )
+  :: error flag
+  set ERROR=0
 
 
-  :: create new symlink for GUI (execute on explorer)
-  if defined GUIEXEC (
-    if not exist "%~dp0%CMDNAME%.cmd" (
-      mklink "%~dp0%CMDNAME%.cmd" "%CMDNAME%.bat" || (
-        echo %~n0: ERROR: Failed to create a command symlink '%CMDNAME%.cmd'.
-        echo                 Please check if you either enabled 'Developer Mode' on Windows,
-        echo                 or executed the command with admin privilege.
+  :: create new link
+  if "%CMDNAME%" == %SCRIPTNAME% (
+    set ERROR=1
+  ) else if exist "%~dp0%CMDNAME%.bat" (
+    set ERROR=2
+  ) else (
+
+
+
+    mklink "%~dp0%CMDNAME%.bat" "%~n0.bat" >nul 2>nul && (
+
+
+      if defined GUIEXEC (
+    
+        if not exist "%~dp0%CMDNAME%.cmd" (
+      
+          mklink "%~dp0%CMDNAME%.cmd" "%CMDNAME%.bat" >nul 2>nul || (
+            set ERROR=3
+          )
+      
+        ) else (
+          set ERROR=4
+          del "%~dp0%CMDNAME%.bat" >nul 2>nul
+        )
+      
       )
+
+
+    ) || (
+      set ERROR=3
     )
   )
 
-  :: print result symlink list
-  call :management-mode_list
 
+
+  :: print error
+  if "%ERROR%" == "1" (
+    echo %~n0: ERROR: '%CMDNAME%' is invalid.
+  ) else if "%ERROR%" == "2" (
+    echo %~n0: ERROR: Command '%CMDNAME%' already exists.
+  ) else if "%ERROR%" == "3" (
+    echo %~n0: ERROR: Failed to link a command '%CMDNAME%'.
+    echo                 Please check if you either enabled 'Developer Mode' on Windows,
+    echo                 or executed the command with admin privilege.
+  ) else if "%ERROR%" == "4" (
+    echo %~n0: ERROR: Failed to link a command '%CMDNAME%'.
+    echo                 There is unknown existing file '%~dp0%CMDNAME%.cmd'.
+    echo                 Delete the file manually and try again.
+  ) else (
+    echo  - Linked command '%CMDNAME%' to WSL.
+  )
 
   exit /b 0
 
@@ -193,50 +242,64 @@ exit /b 0
 
 :management-mode_del
 
-  :: arg check
-  set CMDNAME=%~2
-  if not defined CMDNAME (
-    echo usage: %~n0 %~n1 [linux-command-to-delete]
-    call :management-mode_list
-    exit /b 0
-  )
-  if "%CMDNAME%" == %SCRIPTNAME% (
-    echo %~n0: ERROR: '%CMDNAME%' is invalid.
-    exit /b 0
-  )
-  if not exist "%~dp0%CMDNAME%.bat" (
-    echo %~n0: ERROR: '%CMDNAME%.bat' does not exist.
-    exit /b 0
-  )
 
-
+  set CMDNAME=%~1
+  
   :: set GUI exec flag
   set GUIEXEC=
   if %CMDNAME:~0,1% == . (
     set GUIEXEC=1
   )
-  
-
-  :: delete existing symlink
-  del "%~dp0%CMDNAME%.bat" || (
-    echo %~n0: ERROR: Failed to delete a command symlink '%CMDNAME%.bat'.
-    echo                 Please check if you have enough privilege to delete.
-  )
 
 
-  :: delete existing symlink for GUI (execute on explorer)
-  if defined GUIEXEC (
-    if exist "%~dp0%CMDNAME%.cmd" (
-      del "%~dp0%CMDNAME%.cmd" || (
-        echo %~n0: ERROR: Failed to delete a command symlink '%CMDNAME%.cmd'.
-        echo                 Please check if you have enough privilege to delete.
+  :: error flag
+  set ERROR=0
+
+
+  :: create new link
+  if "%CMDNAME%" == %SCRIPTNAME% (
+    set ERROR=1
+  ) else if not exist "%~dp0%CMDNAME%.bat" (
+    set ERROR=2
+  ) else (
+
+
+    :: delete existing symlink
+    del "%~dp0%CMDNAME%.bat" >nul 2>nul && (
+
+
+      if defined GUIEXEC (
+      
+        if exist "%~dp0%CMDNAME%.cmd" (
+        
+          del "%~dp0%CMDNAME%.cmd" >nul 2>nul || (
+            set ERROR=3
+          )
+          
+        )
       )
+
+
+    ) || (
+      set ERROR=3
     )
+
+
   )
 
-  :: print result symlink list
-  call :management-mode_list
 
+
+  :: print error
+  if "%ERROR%" == "1" (
+    echo %~n0: ERROR: '%CMDNAME%' is invalid.
+  ) else if "%ERROR%" == "2" (
+    echo %~n0: ERROR: Command '%CMDNAME%' does not exist.
+  ) else if "%ERROR%" == "3" (
+    echo %~n0: ERROR: Failed to delete a command '%CMDNAME%'.
+    echo                 Please check if you have enough privilege to delete.
+  ) else (
+    echo  - Unlinked command '%CMDNAME%' from WSL.
+  )
 
   exit /b 0
 
@@ -249,8 +312,8 @@ exit /b 0
   set LINK_PATH=\[%LINK_PATH:\=\\%\]
 
   :: build symlink list
-  set LINK_LIST=[Symlink-List]
-  for /F "tokens=2 delims=>[" %%G in ('dir /AL %~dp0 ^| findstr /E /C:"%LINK_PATH%"') do (
+  set LINK_LIST=
+  for /F "tokens=2 delims=>[" %%G in ('dir /AL %~dp0^*.bat 2^>nul ^| findstr /E /C:"%LINK_PATH%"') do (
     set LINK_LIST=!LINK_LIST! %%G
 
     :: trim the extension if there is
@@ -259,8 +322,11 @@ exit /b 0
     )
   )
 
-  echo.
-  echo %LINK_LIST%
+  if defined LINK_LIST (
+    echo [Command-List] %LINK_LIST%
+  ) else (
+    echo ^(Command-List has no entry^)
+  )
 
   exit /b 0
 
@@ -269,22 +335,22 @@ exit /b 0
 :management-mode_help
 
   :: help msg
-  echo usage: %~n0 ^<operation^> [^<arg^>]
+  echo usage: %~n0 ^<operation^> [^<arg1^> ^<arg2^> ...]
   echo.
   echo  ^<operation^>
   echo.
-  echo    - Create a new command link
+  echo    - Link new commands
   echo.
-  echo        %~n0 new ^<command-name^>
-  echo        %~n0 add ^<command-name^>
-  echo        %~n0 ln ^<command-name^>
+  echo        %~n0 new ^<command-name-1^> ^<command-name-2^> ...
+  echo        %~n0 add ^<command-name-1^> ^<command-name-2^> ...
+  echo        %~n0 ln ^<command-name-1^> ^<command-name-2^> ...
   echo.
-  echo    - Delete an existing command link
+  echo    - Unlink existing commands
   echo.
-  echo        %~n0 del ^<command-name^>
-  echo        %~n0 rm ^<command-name^>
+  echo        %~n0 del ^<command-name-1^> ^<command-name-2^> ...
+  echo        %~n0 rm ^<command-name-1^> ^<command-name-2^> ...
   echo.
-  echo    - List all existing command links
+  echo    - List linked commands
   echo.
   echo        %~n0 list
   echo.

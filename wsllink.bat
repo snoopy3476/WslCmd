@@ -36,32 +36,57 @@ exit /b 0
 
 
 
-:execution-mode
 
-  :: check GUI exec
+
+:: (%*: script-args)
+:execution-mode
+  setlocal
+
+
+
+  call :parse-cmdname "%~n0" CMDNAME USERNAME GUIEXEC
+
+
+  :: build base cmdline
+  set USERARG=
+  if defined USERNAME (
+    set USERARG=-u %USERNAME%
+  )
   set GUIARG=
-  if %WSLCMDLINE:~1,1% == . (
-    set WSLCMDLINE="!WSLCMDLINE:~2,-1!"
+  if defined GUIEXEC (
     set GUIARG="tmux" "new" "-d"
   )
+  set WSLCMDLINE=%CMDNAME%
+
 
   :: append args to cmdline
-  for %%G in (%*) do (call :execution-mode_append-arg %%G)
+  for %%G in (%*) do (call :execution-mode_append-arg %%G WSLCMDLINE)
+
 
   :: execute cmdline
-  wsl -- . /etc/profile; . $HOME/.profile; %GUIARG% %WSLCMDLINE%
-  :: echo %WSLCMDLINE%
+  wsl %USERARG% -- . /etc/profile; . $HOME/.profile; %GUIARG% %WSLCMDLINE%
+  ::echo %WSLCMDLINE%
 
+
+
+  endlocal
   exit /b 0
 
 
 
-:execution-mode_append-arg
 
-  set ARG=%*
+
+:: (%1: input-arg) (%2: full-wsl-cmdline (Input/Output))
+:execution-mode_append-arg
+  setlocal
+
+
+
+  set ARG=%1
+  set WSLCMDLINE=!%2!
   
   :: convert all \ to / (for relative path args)
-  call :execution-mode_append-arg_slash %%*
+  call :execution-mode_append-arg_slash ARG
   :: remove all doublequotes for test
   set ARGNOQUOTE=%ARG:"=%
   ::"
@@ -80,28 +105,40 @@ exit /b 0
   )
 
 
+
+  endlocal & set %2=%WSLCMDLINE%
   exit /b 0
 
 
 
 
-:execution-mode_append-arg_slash
 
-  set ARG=%*
+:: (%1: input (Input/Output))
+:execution-mode_append-arg_slash
+  setlocal
+
+
+
+  :: args
+  set INPUT=!%1!
+  
   
   :: encode {, }, \\ into sequence of {, }
-  set ARG=%ARG:{={{{%
-  set ARG=%ARG:}={{}%
-  set ARG=%ARG:\\={}}%
+  set INPUT=%INPUT:{={{{%
+  set INPUT=%INPUT:}={{}%
+  set INPUT=%INPUT:\\={}}%
 
   :: convert remaining \ (non-escaped back slash) to /
-  set ARG=%ARG:\=/%
+  set INPUT=%INPUT:\=/%
 
   :: recover {, }, \\ (change \\ to \)
-  set ARG=%ARG:{}}=\%
-  set ARG=%ARG:{{}=}%
-  set ARG=%ARG:{{{={%
+  set INPUT=%INPUT:{}}=\%
+  set INPUT=%INPUT:{{}=}%
+  set INPUT=%INPUT:{{{={%
 
+
+
+  endlocal & set %1=%INPUT%
   exit /b 0
 
 
@@ -113,7 +150,13 @@ exit /b 0
 
 
 
+
+
+:: (%1: op_mode) (%2: arg-1) (%3: arg-2) ...
 :management-mode
+  setlocal
+
+
 
   :: trim all doublequotes for %1, to prevent error
   set OP=%~1
@@ -126,7 +169,7 @@ exit /b 0
   if "%OP%" == "rm" set OP_BRANCH=d
   if "%OP%" == "list" set OP_BRANCH=l
 
-
+::echo "%~1" "%~2" "%~3"
 
   if defined OP_BRANCH (
 
@@ -165,52 +208,52 @@ exit /b 0
   )
   
 
+
+  endlocal
   exit /b 0
 
 
 
+
+
+:: (%1: command-name-1) (%2: command-name-2) ...
 :management-mode_new
-
-  set CMDNAME=%~1
-  
-  :: set GUI exec flag
-  set GUIEXEC=
-  if %CMDNAME:~0,1% == . (
-    set GUIEXEC=1
-  )
+  setlocal
 
 
-  :: error flag
-  set ERROR=0
+
+  :: parse command name & user name from script name
+  call :parse-cmdname %%~1 CMDNAME USERNAME GUIEXEC
+  set CMDNAME_WITHUSER=%~1
 
 
   :: create new link
-  if "%CMDNAME%" == %SCRIPTNAME% (
+  set ERROR=0
+  set CMDNAME_UNQ=%CMDNAME%
+  call :unquote CMDNAME_UNQ
+  if "%CMDNAME_UNQ%" == %SCRIPTNAME% (
     set ERROR=1
-  ) else if exist "%~dp0%CMDNAME%.bat" (
+  ) else if exist "%~dp0%CMDNAME_WITHUSER%.bat" (
     set ERROR=2
   ) else (
 
 
-
-    mklink "%~dp0%CMDNAME%.bat" "%~n0.bat" >nul 2>nul && (
-
+    mklink "%~dp0%CMDNAME_WITHUSER%.bat" "%~n0.bat" >nul 2>nul && (
 
       if defined GUIEXEC (
     
-        if not exist "%~dp0%CMDNAME%.cmd" (
+        if not exist "%~dp0%CMDNAME_WITHUSER%.cmd" (
       
-          mklink "%~dp0%CMDNAME%.cmd" "%CMDNAME%.bat" >nul 2>nul || (
+          mklink "%~dp0%CMDNAME_WITHUSER%.cmd" "%CMDNAME_WITHUSER%.bat" >nul 2>nul || (
             set ERROR=3
           )
       
         ) else (
           set ERROR=4
-          del "%~dp0%CMDNAME%.bat" >nul 2>nul
+          del "%~dp0%CMDNAME_WITHUSER%.bat" >nul 2>nul
         )
       
       )
-
 
     ) || (
       set ERROR=3
@@ -218,61 +261,63 @@ exit /b 0
   )
 
 
-
   :: print error
   if "%ERROR%" == "1" (
-    echo %~n0: ERROR: '%CMDNAME%' is invalid.
+    echo %~n0: ERROR: '%CMDNAME_WITHUSER%' is invalid.
   ) else if "%ERROR%" == "2" (
-    echo %~n0: ERROR: Command '%CMDNAME%' already exists.
+    echo %~n0: ERROR: Command '%CMDNAME_WITHUSER%' already exists.
   ) else if "%ERROR%" == "3" (
-    echo %~n0: ERROR: Failed to link a command '%CMDNAME%'.
+    echo %~n0: ERROR: Failed to link a command '%CMDNAME_WITHUSER%'.
     echo                 Please check if you either enabled 'Developer Mode' on Windows,
     echo                 or executed the command with admin privilege.
   ) else if "%ERROR%" == "4" (
-    echo %~n0: ERROR: Failed to link a command '%CMDNAME%'.
-    echo                 There is unknown existing file '%~dp0%CMDNAME%.cmd'.
+    echo %~n0: ERROR: Failed to link a command '%CMDNAME_WITHUSER%'.
+    echo                 There is unknown existing file '%~dp0%CMDNAME_WITHUSER%.cmd'.
     echo                 Delete the file manually and try again.
   ) else (
-    echo  - Linked command '%CMDNAME%' to WSL.
+    echo  - Linked command '%CMDNAME_WITHUSER%' to WSL.
   )
 
+
+
+  endlocal
   exit /b 0
 
 
 
+
+
+:: (%1: command-name-1) (%2: command-name-2) ...
 :management-mode_del
+  setlocal
 
 
-  set CMDNAME=%~1
-  
-  :: set GUI exec flag
-  set GUIEXEC=
-  if %CMDNAME:~0,1% == . (
-    set GUIEXEC=1
-  )
 
-
-  :: error flag
-  set ERROR=0
+  :: parse command name & user name from script name
+  call :parse-cmdname %%~1 CMDNAME USERNAME GUIEXEC
+  set CMDNAME_WITHUSER=%~1
 
 
   :: create new link
-  if "%CMDNAME%" == %SCRIPTNAME% (
+  set ERROR=0
+  set CMDNAME_UNQ=%CMDNAME%
+  call :unquote CMDNAME_UNQ
+  if "%CMDNAME_UNQ%" == %SCRIPTNAME% (
     set ERROR=1
-  ) else if not exist "%~dp0%CMDNAME%.bat" (
+  ) else if not exist "%~dp0%CMDNAME_WITHUSER%.bat" (
     set ERROR=2
   ) else (
 
 
     :: delete existing symlink
-    del "%~dp0%CMDNAME%.bat" >nul 2>nul && (
+    del "%~dp0%CMDNAME_WITHUSER%.bat" >nul 2>nul && (
 
 
       if defined GUIEXEC (
       
-        if exist "%~dp0%CMDNAME%.cmd" (
+        if exist "%~dp0%CMDNAME_WITHUSER%.cmd" (
         
-          del "%~dp0%CMDNAME%.cmd" >nul 2>nul || (
+          del "%~dp0%CMDNAME_WITHUSER%.cmd" >nul 2>nul || (
             set ERROR=3
           )
           
@@ -291,21 +336,29 @@ exit /b 0
 
   :: print error
   if "%ERROR%" == "1" (
-    echo %~n0: ERROR: '%CMDNAME%' is invalid.
+    echo %~n0: ERROR: '%CMDNAME_WITHUSER%' is invalid.
   ) else if "%ERROR%" == "2" (
-    echo %~n0: ERROR: Command '%CMDNAME%' does not exist.
+    echo %~n0: ERROR: Command '%CMDNAME_WITHUSER%' does not exist.
   ) else if "%ERROR%" == "3" (
-    echo %~n0: ERROR: Failed to delete a command '%CMDNAME%'.
+    echo %~n0: ERROR: Failed to delete a command '%CMDNAME_WITHUSER%'.
     echo                 Please check if you have enough privilege to delete.
   ) else (
-    echo  - Unlinked command '%CMDNAME%' from WSL.
+    echo  - Unlinked command '%CMDNAME_WITHUSER%' from WSL.
   )
 
+
+
+  endlocal
   exit /b 0
 
 
 
+
+
 :management-mode_list
+  setlocal
+  
+
 
   :: pattern string
   set LINK_PATH=%~n0.bat
@@ -328,11 +381,19 @@ exit /b 0
     echo ^(Command-List has no entry^)
   )
 
+
+
+  endlocal
   exit /b 0
 
 
 
+
+
 :management-mode_help
+  setlocal
+
+
 
   :: help msg
   echo usage: %~n0 ^<operation^> [^<arg1^> ^<arg2^> ...]
@@ -356,6 +417,61 @@ exit /b 0
   echo.
 
 
+
+  endlocal
   exit /b 0
 
 
+
+
+
+:: (%1: input) (%2: command-name (OUT)) (%3: user-name (OUT)) (%4: is-guiexec (OUT))
+:parse-cmdname
+  setlocal
+
+
+
+  :: args
+  set CMDFULL=%1
+  set CMDNAME=
+  set USERNAME=
+  set GUIEXEC=
+
+  :: encode {, }, @@ into sequence of {, }
+  set CMDFULL=%CMDFULL:{={{{%
+  set CMDFULL=%CMDFULL:}={{}%
+  set CMDFULL=%CMDFULL:@@={}}%
+
+  :: split string with @ (CMDNAME@USERNAME)
+  set "CMDNAME=%CMDFULL:@=" & set "USERNAME=%"
+
+  :: recover {, }, @@ (change @@ to @)
+  set CMDNAME=%CMDNAME:{}}=@%
+  set CMDNAME=%CMDNAME:{{}=}%
+  set CMDNAME=%CMDNAME:{{{={%
+
+  if defined USERNAME (
+    set USERNAME=%USERNAME:{}}=@%
+    set USERNAME=%USERNAME:{{}=}%
+    set USERNAME=%USERNAME:{{{={%
+  )
+
+  set CMDNAME_UNQ=%CMDNAME%
+  call :unquote CMDNAME_UNQ
+
+  :: set GUI exec flag
+  if %CMDNAME_UNQ:~0,1% == . (
+    set GUIEXEC=1
+  )
+
+
+
+  endlocal & set %2=%CMDNAME%& set %3=%USERNAME%& set %4=%GUIEXEC%
+  exit /b 0
+
+
+
+
+
+:unquote
+for /f "delims=" %%G in ('echo %%%1%%') do set %1=%%~G

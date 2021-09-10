@@ -1,16 +1,14 @@
-pub fn manage_mode(orig_bin_basename: &String, cmd_bin_basename: &String, args: &Vec<String>) {
-    print!(
-        concat!("original_bin:\t{}\n", "cmdline_bin:\t{}\n"),
-        orig_bin_basename, cmd_bin_basename
-    );
-    for (i, arg) in args.iter().enumerate() {
-        println!("arg[{}]: \t{:?}", i, arg);
-    }
+pub fn management_mode(args: &[String]) -> Option<i32> {
+    println!("\n ===== Management mode! ===== ");
 
-    print_help(cmd_bin_basename);
+    println!("{:?}", args);
+
+    print_help(args.get(0).map_or("", String::as_str));
+
+    Some(0)
 }
 
-fn print_help(bin_name: &String) {
+fn print_help(bin_name: &str) {
     print!(
         concat!(
             "usage: {0} <operation> [<arg1> <arg2> ...]\n",

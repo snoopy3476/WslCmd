@@ -23,6 +23,9 @@ pub struct WslCmd {
     /// WSL username to execute command
     pub username: Option<String>,
 
+    /// WSL distribution
+    pub distribution: Option<String>,
+
     /// Detached process mode
     ///
     /// Execute as a detached background process. Useful for GUI binaries.
@@ -52,7 +55,7 @@ impl WslCmd {
         // split given args into (binname, args)
         cmd_args.split_first().and_then(|(binname, args)| {
             // get vars from binname with parsing
-            let (is_detached_proc, command, username) = Self::parse_cmd(binname)?;
+            let (is_detached_proc, command, username, distribution) = Self::parse_cmd(binname)?;
             // parse & convert args to wsl args
             let args = Self::parse_args(args);
 
@@ -63,6 +66,7 @@ impl WslCmd {
                     is_detached_proc,
                     command,
                     username,
+                    distribution,
                     args,
                 }
             })
@@ -71,7 +75,7 @@ impl WslCmd {
 
     // parse command name, to get (detached mode, command, user)
     // returns None if error (failed to get basename, command name is empty)
-    fn parse_cmd(binname: &String) -> Option<(bool, String, Option<String>)> {
+    fn parse_cmd(binname: &String) -> Option<(bool, String, Option<String>, Option<String>)> {
         let mut it = {
             binname
                 .path_basename()?
@@ -80,8 +84,9 @@ impl WslCmd {
         };
         Some((
             it.next_if(|str| str.is_empty()).is_some(), // detached mode
-            it.next().map(String::from).filter(|s| !s.is_empty())?, // command
-            it.next().map(String::from),                // user
+            it.next().map(String::from).filter(|s| !s.is_empty())?, // command, must not empty
+            it.next().map(String::from).filter(|s| !s.is_empty()), // user
+            it.next().map(String::from).filter(|s| !s.is_empty()), // distribution
         ))
     }
 
@@ -149,6 +154,13 @@ impl WslCmd {
             .args({
                 match self.username.as_deref() {
                     Some(user) => vec!["-u", user], // user defined: additional args
+                    None => vec![],                 // user not defined: no args
+                }
+            })
+            // append arg: distribution
+            .args({
+                match self.distribution.as_deref() {
+                    Some(dist) => vec!["-d", dist], // user defined: additional args
                     None => vec![],                 // user not defined: no args
                 }
             })

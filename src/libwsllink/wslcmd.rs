@@ -1,6 +1,7 @@
 use derive_getters::Getters;
 
-use super::wlpath::WLPath;
+use super::WLPath;
+use super::WLStr;
 
 /// Delimiter of command name, which divides into bg proc mode, wsl command name, wsl user name
 const CMDNAME_DELIM: char = '$';
@@ -48,10 +49,10 @@ impl WslCmd {
     ///
     /// ```
     /// let args: Vec<String> = args().collect();
-    /// let wsl_cmd: WslCmd = WslCmd::new(&args);
+    /// let wslcmd: WslCmd = WslCmd::new(&args);
     /// ```
     ///
-    pub fn new(cmd_args: &[String]) -> Option<Self> {
+    pub fn new<T: WLStr>(cmd_args: &[T]) -> Option<Self> {
         // split given args into (binname, args)
         cmd_args.split_first().and_then(|(binname, args)| {
             // get vars from binname with parsing
@@ -75,10 +76,10 @@ impl WslCmd {
 
     // parse command name, to get (detached mode, command, user)
     // returns None if error (failed to get basename, command name is empty)
-    fn parse_cmd(binname: &String) -> Option<(bool, String, Option<String>, Option<String>)> {
+    fn parse_cmd<T: WLPath>(binname: &T) -> Option<(bool, String, Option<String>, Option<String>)> {
         let mut it = {
             binname
-                .path_basename()?
+                .wlpath_basename()?
                 .split(CMDNAME_DELIM) // iterator by splitted binname
                 .peekable()
         };
@@ -91,18 +92,23 @@ impl WslCmd {
     }
 
     // parse each arg and do processing
-    fn parse_args(args: &[String]) -> Vec<String> {
+    fn parse_args<T: WLStr>(args: &[T]) -> Vec<String> {
         match std::env::var(ENVFLAG_NO_ARGCONV).is_err() {
-            true => args.iter().map(Self::convert_arg_to_wsl_arg).collect(), // default
-            false => args.iter().map(String::from).collect(), // if flag set, no conversion
+            // default: convert args
+            true => args.iter().map(Self::convert_arg_to_wsl_arg).collect(),
+            // if NO_ARGCONV flag set, no conversion
+            false => args
+                .iter()
+                .map(|t| t.wlstr_as_ref().unwrap_or_default().to_owned())
+                .collect(),
         }
     }
 
     // arg -> wsl arg (mainly path conversion)
-    fn convert_arg_to_wsl_arg(arg: &String) -> String {
-        arg.invoke_chain(&Self::arg_convert_and_unescape_backslashes)
-            .invoke_chain(&Self::arg_wrap_with_wslpath_if_absolute)
-            .unwrap_or(arg.to_owned())
+    fn convert_arg_to_wsl_arg<T: WLStr>(arg: &T) -> String {
+        arg.wlstr_invoke(Self::arg_convert_and_unescape_backslashes)
+            .wlstr_invoke(Self::arg_wrap_with_wslpath_if_absolute)
+            .unwrap_or(arg.wlstr_as_ref().unwrap_or_default().to_owned())
     }
 
     // replace single '\' (not consecutive '\'s) to '/',
@@ -111,23 +117,22 @@ impl WslCmd {
     //        '\\' -> '\'
     //        '\\\' -> '\\'
     //        ...
-    fn arg_convert_and_unescape_backslashes(arg: &str) -> String {
-        arg.replace_all_regex(
+    fn arg_convert_and_unescape_backslashes<T: WLStr>(arg: &T) -> Option<String> {
+        arg.wlstr_replace_all_regex(
             concat!(r"(?P<pre>(^|[^\\]))", r"\\", r"(?P<post>([^\\]|$))"),
             "$pre/$post",
         ) // '\' -> '/'
-        .replace_all_regex(r"\\(?P<remain>\\+)", "$remain") // '\\...' -> '\...'
-        .unwrap_or(arg.to_owned())
+        .wlstr_replace_all_regex(r"\\(?P<remain>\\+)", "$remain") // '\\...' -> '\...'
     }
 
     // if an argument an absolute path, just converting '\' -> '/' is not enough.
     // the arg starting with drive letter pattern should be converted into wsl path manually
     // using wslpath inside wsl.
-    fn arg_wrap_with_wslpath_if_absolute(arg: &str) -> String {
-        std::path::Path::new(arg)
-            .is_absolute()
-            .then(|| format!("$(wslpath '{}')", arg)) // wrap with wslpath substitution
-            .unwrap_or(arg.to_owned())
+    fn arg_wrap_with_wslpath_if_absolute<T: WLStr>(arg: &T) -> Option<String> {
+        arg.wlstr_as_ref()
+            .wlpath_is_absolute()
+            // wrap with wslpath substitution
+            .then(|| format!("$(wslpath '{}')", arg.wlstr_as_ref().unwrap_or_default()))
     }
 
     ///
@@ -141,8 +146,8 @@ impl WslCmd {
     /// # Examples
     ///
     /// ```
-    /// let wsl_cmd: WslCmd = WslCmd::new(&args);
-    /// let exit_code: Option<i32> = wsl_cmd.execute();
+    /// let wslcmd: WslCmd = WslCmd::new(&args);
+    /// let exit_code: Option<i32> = wslcmd.execute();
     /// ```
     ///
     pub fn execute(&self) -> Option<i32> {

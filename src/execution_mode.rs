@@ -1,4 +1,4 @@
-use super::wsllink_core::wslcmd::WslCmd;
+use super::libwsllink::WslCmd;
 
 /// Convert Windows cmdline to WSL cmdline, then execute converted WSL command
 pub fn execution_mode(args: &[String]) -> Option<i32> {

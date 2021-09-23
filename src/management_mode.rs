@@ -1,10 +1,10 @@
-use super::wsllink_core::wlpath::WLPath;
+use super::libwsllink::WLPath;
 
 /// Manage (add/del/list) linked WSL commands
 pub fn management_mode(args: &[String]) -> Option<i32> {
     crate::__wsllink_dbg!("Management mode - cmdline args", &args); // debug
 
-    print_help(args.get(0).path_basename().unwrap_or(""));
+    print_help(args.get(0).wlpath_basename().unwrap_or_default());
 
     Some(0)
 }

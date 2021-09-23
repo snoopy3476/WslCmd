@@ -65,6 +65,7 @@ macro_rules! __wsllink_dbg {
 }
 
 /// Prints debug msg header only, if str is not empty (for the macro [`__wsllink_dbg`])
+#[cfg(debug_assertions)]
 #[macro_export]
 macro_rules! __wsllink_dbg_header {
     ($label:literal) => {
@@ -93,6 +94,7 @@ macro_rules! __wsllink_dbg_header {
 }
 
 /// Prints debug msg body (args) only (for the macro [`__wsllink_dbg`])
+#[cfg(debug_assertions)]
 #[macro_export]
 macro_rules! __wsllink_dbg_body {
     ($($args:expr), +) => {

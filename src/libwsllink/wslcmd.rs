@@ -13,6 +13,7 @@ const ENVFLAG_NO_ARGCONV: &str = "WSLLINK_NO_ARGCONV";
 /// which can be converted to execute WSL command
 pub struct WslCmd {
     /// For preventing direct struct creating
+    #[getter(skip)]
     _no_direct_construct: (),
 
     /// WSL command name

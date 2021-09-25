@@ -1,8 +1,20 @@
 use super::libwsllink::WLPath;
+use super::libwsllink::WslCmdList;
 
 /// Manage (add/del/list) linked WSL commands
 pub fn management_mode(args: &[String]) -> Option<i32> {
     crate::__wsllink_dbg!("Management mode - cmdline args", &args); // debug
+
+    let mut wslcmd_list = std::env::current_exe()
+        .ok()
+        .and_then(|pb| WslCmdList::new(&pb))?;
+
+    println!(" - WslCmdList - Before: [{}]", &wslcmd_list); // debug
+    wslcmd_list.push(std::path::PathBuf::from("testcmd.exe")); // test
+    wslcmd_list.push(std::path::PathBuf::from("testcmd2.exe")); // test
+    wslcmd_list.push(std::path::PathBuf::from("testcmd3.exe")); // test
+    wslcmd_list.push(std::path::PathBuf::from("testcmd")); // test
+    println!(" - WslCmdList - After:  [{}]", &wslcmd_list); // debug
 
     print_help(args.get(0).wlpath_basename().unwrap_or_default());
 

@@ -4,7 +4,7 @@ pub use wlpath::WLPath;
 
 /// WslLink str
 ///
-/// Includes submodule trait [`WLPath`], which means all [`WLPath`] can utilize WLStr functions
+/// Includes submodule trait [`WLPath`], which means all [`WLStr`] can utilize [`WLPath`] functions
 pub trait WLStr: WLPath + Clone {
     /// Get reference of [`WLStr`]
     fn wlstr_as_ref(&self) -> Option<&str>;
@@ -12,6 +12,12 @@ pub trait WLStr: WLPath + Clone {
     /// Get ownership of self [`WLStr`] or create new one if ref type,
     /// then return it in the form of [`Option`]<[`String`]>
     fn wlstr_to_string(self) -> Option<String>;
+
+    /// Clone new [`WLStr`] from self ref,
+    /// then return it in form of [`String`]
+    fn wlstr_clone_to_string(&self) -> Option<String> {
+        self.clone().wlstr_to_string()
+    }
 
     /// Do replace_all on [`WLStr`]
     fn wlstr_replace_all_regex(&self, match_pattern: &str, replace_with: &str) -> Option<String> {
@@ -84,11 +90,3 @@ impl WLStr for Option<&str> {
         self.map(String::from)
     }
 }
-
-/*
-
-/// [`Option`]<&[`str`]> implementations for [`WLStr`]
-impl Eq for WLStr {
-}
-
-*/

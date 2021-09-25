@@ -3,8 +3,6 @@ use std::path::{Path, PathBuf};
 
 /// WslLink path
 pub trait WLPath: Clone {
-    ///// Get string reference inside WLPath
-    //fn wlpath_ref(&self) -> Option<&str>;
     /// Return [`Path`] containing refered str slice inside [`WLPath`]
     fn wlpath_as_path(&self) -> Option<&Path>;
 
@@ -12,6 +10,17 @@ pub trait WLPath: Clone {
     /// or create new [`PathBuf`] with [`WLPath`] if refered,
     /// then return it
     fn wlpath_to_pathbuf(self) -> Option<PathBuf>;
+
+    /// Clone new [`WLPath`] from self ref,
+    /// then return it in form of [`PathBuf`]
+    fn wlpath_clone_to_pathbuf(&self) -> Option<PathBuf> {
+        self.clone().wlpath_to_pathbuf()
+    }
+
+    /// Get [`str`] reference of [`WLPath`]
+    fn wlpath_as_ref(&self) -> Option<&str> {
+        self.wlpath_as_path().and_then(Path::to_str)
+    }
 
     /// Get basename of [`WLPath`]
     fn wlpath_basename(&self) -> Option<&str> {

@@ -12,26 +12,22 @@ const ENVFLAG_NO_ARGCONV: &str = "WSLLINK_NO_ARGCONV";
 /// Store input WSL cmdline info including arguments,
 /// which can be converted to execute WSL command
 pub struct WslCmd {
-    /// For preventing direct struct creating
-    #[getter(skip)]
-    _no_direct_construct: (),
-
     /// WSL command name
-    pub command: String,
+    command: String,
 
     /// WSL command arguments
-    pub args: Vec<String>,
+    args: Vec<String>,
 
     /// WSL username to execute command
-    pub username: Option<String>,
+    username: Option<String>,
 
     /// WSL distribution
-    pub distribution: Option<String>,
+    distribution: Option<String>,
 
     /// Detached process mode
     ///
     /// Execute as a detached background process. Useful for GUI binaries.
-    pub is_detached_proc: bool,
+    is_detached_proc: bool,
 }
 
 impl WslCmd {
@@ -44,15 +40,17 @@ impl WslCmd {
     ///
     /// # Return
     ///
-    /// A newly created [`WslCmd`] with given cmdline args
+    /// A newly created [`Some`]\([`WslCmd`]\) with given cmdline args if succeeded.
+    /// [`None`] if failed to create an instance.
     ///
     /// # Examples
     ///
     /// ```
     /// let args: Vec<String> = args().collect();
-    /// let wslcmd: WslCmd = WslCmd::new(&args);
+    /// let wslcmd: Option<WslCmd> = WslCmd::new(&args);
     /// ```
     ///
+    #[allow(dead_code)]
     pub fn new<T: WLStr>(cmd_args: &[T]) -> Option<Self> {
         // split given args into (binname, args)
         cmd_args.split_first().and_then(|(binname, args)| {
@@ -64,7 +62,6 @@ impl WslCmd {
             // return struct instance
             Some({
                 Self {
-                    _no_direct_construct: (),
                     is_detached_proc,
                     command,
                     username,
@@ -73,6 +70,69 @@ impl WslCmd {
                 }
             })
         })
+    }
+
+    ///
+    /// Execute [`WslCmd`].
+    ///
+    /// # Return
+    ///
+    /// [`Some`]\(exit_code\) if the command is executed, [`None`] if failed before execution.
+    ///   (exit_code will be 0 when executed in [`is_detached_proc`](Self::is_detached_proc)
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// let wslcmd: Option<WslCmd> = WslCmd::new(&args);
+    /// let exit_code: Option<i32> = wslcmd.map_or(None, |w| w.execute());;
+    /// ```
+    ///
+    #[allow(dead_code)]
+    pub fn execute(&self) -> Option<i32> {
+        use std::os::windows::process::CommandExt;
+
+        // build and execute command, then get exit code
+        std::process::Command::new("wsl")
+            // append arg: username
+            .args({
+                match self.username.as_deref() {
+                    Some(user) => vec!["-u", user], // user defined: additional args
+                    None => vec![],                 // user not defined: no args
+                }
+            })
+            // append arg: distribution
+            .args({
+                match self.distribution.as_deref() {
+                    Some(dist) => vec!["-d", dist], // user defined: additional args
+                    None => vec![],                 // user not defined: no args
+                }
+            })
+            // append arg: start wsl shell commands
+            .arg("--")
+            // append args: load env vars
+            .args(&[".", "/etc/profile;", ".", "$HOME/.profile;"])
+            // append arg: append wsl command
+            .arg(&self.command)
+            // append args: wsl command args
+            .args(&self.args)
+            // set flag: create as normal mode or detached mode
+            .creation_flags({
+                match self.is_detached_proc {
+                    // https://docs.microsoft.com/en-us/windows/win32/procthread/process-creation-flags
+                    true => 0x08000000,  // detached mode flag - CREATE_NO_WINDOW
+                    false => 0x00000000, // normal mode flag - RESET
+                }
+            })
+            // execute command in a bg child process first (attached later if needed)
+            .spawn() // Result<Child>
+            .ok()
+            // handle with process exit status
+            .and_then(|mut child| {
+                match self.is_detached_proc {
+                    true => Some(0),                    // for bg process mode
+                    false => child.wait().ok()?.code(), // extract exit code
+                }
+            })
     }
 
     // parse command name, to get (detached mode, command, user)
@@ -134,67 +194,5 @@ impl WslCmd {
             .wlpath_is_absolute()
             // wrap with wslpath substitution
             .then(|| format!("$(wslpath '{}')", arg.wlstr_as_ref().unwrap_or_default()))
-    }
-
-    ///
-    /// Execute [`WslCmd`].
-    ///
-    /// # Return
-    ///
-    /// [`Some`]\(exit_code\) if the command is executed, [`None`] if failed before execution.
-    ///   (exit_code will be 0 when executed in [`is_detached_proc`](Self::is_detached_proc)
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// let wslcmd: WslCmd = WslCmd::new(&args);
-    /// let exit_code: Option<i32> = wslcmd.execute();
-    /// ```
-    ///
-    pub fn execute(&self) -> Option<i32> {
-        use std::os::windows::process::CommandExt;
-
-        // build and execute command, then get exit code
-        std::process::Command::new("wsl")
-            // append arg: username
-            .args({
-                match self.username.as_deref() {
-                    Some(user) => vec!["-u", user], // user defined: additional args
-                    None => vec![],                 // user not defined: no args
-                }
-            })
-            // append arg: distribution
-            .args({
-                match self.distribution.as_deref() {
-                    Some(dist) => vec!["-d", dist], // user defined: additional args
-                    None => vec![],                 // user not defined: no args
-                }
-            })
-            // append arg: start wsl shell commands
-            .arg("--")
-            // append args: load env vars
-            .args(&[".", "/etc/profile;", ".", "$HOME/.profile;"])
-            // append arg: append wsl command
-            .arg(&self.command)
-            // append args: wsl command args
-            .args(&self.args)
-            // set flag: create as normal mode or detached mode
-            .creation_flags({
-                match self.is_detached_proc {
-                    // https://docs.microsoft.com/en-us/windows/win32/procthread/process-creation-flags
-                    true => 0x08000000,  // detached mode flag - CREATE_NO_WINDOW
-                    false => 0x00000000, // normal mode flag - RESET
-                }
-            })
-            // execute command in a bg child process first (attached later if needed)
-            .spawn() // Result<Child>
-            .ok()
-            // handle with process exit status
-            .and_then(|mut child| {
-                match self.is_detached_proc {
-                    true => Some(0),                    // for bg process mode
-                    false => child.wait().ok()?.code(), // extract exit code
-                }
-            })
     }
 }

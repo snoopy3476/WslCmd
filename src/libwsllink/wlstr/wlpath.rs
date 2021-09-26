@@ -30,6 +30,14 @@ pub trait WLPath: Clone {
         })
     }
 
+    /// Get filename of [`WLPath`]
+    fn wlpath_filename(&self) -> Option<&str> {
+        self.wlpath_as_path().and_then(|p| {
+            p.file_name() // .. -> Option<&OsStr> basename
+                .and_then(OsStr::to_str) // .. -> Option<&str>
+        })
+    }
+
     /// Follow and resolve all links of [`WLPath`]
     fn wlpath_canonicalize(&self) -> Option<PathBuf> {
         self.wlpath_as_path().and_then(|p| {
@@ -155,5 +163,24 @@ impl WLPath for Option<PathBuf> {
     }
     fn wlpath_to_pathbuf(self) -> Option<PathBuf> {
         self // return self (do nothing)
+    }
+}
+
+/// &[`PathBuf`] implementations for [`WLPath`]
+impl WLPath for &PathBuf {
+    fn wlpath_as_path(&self) -> Option<&Path> {
+        Some(self.as_path())
+    }
+    fn wlpath_to_pathbuf(self) -> Option<PathBuf> {
+        Some(self.clone())
+    }
+}
+/// [`Option`]<&[`PathBuf`]> implementations for [`WLPath`]
+impl WLPath for Option<&PathBuf> {
+    fn wlpath_as_path(&self) -> Option<&Path> {
+        self.map(|pb| pb.as_path())
+    }
+    fn wlpath_to_pathbuf(self) -> Option<PathBuf> {
+        self.map(|pb| pb.clone())
     }
 }

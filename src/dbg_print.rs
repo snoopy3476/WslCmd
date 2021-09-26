@@ -50,7 +50,7 @@ macro_rules! __wsllink_dbg {
                 // print header
                 crate::__wsllink_dbg_header!($label);
                 // print body
-                crate::__wsllink_dbg_body!($($args),+);
+                crate::__wsllink_dbg_body!($($args),+)
             }
 
             // for release mode
@@ -109,10 +109,11 @@ macro_rules! __wsllink_dbg_body {
                     .set_fg(Some(Color::Yellow))
             ).ok();
             // print vars
-            dbg!($($args),+);
+            let ret = dbg!($($args),+);
             // reset color
             stderr.reset().ok();
             //eprintln!();
+            ret
         }
     };
 }

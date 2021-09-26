@@ -10,10 +10,10 @@ pub fn management_mode(args: &[String]) -> Option<i32> {
         .and_then(|pb| WslCmdList::new(&pb))?;
 
     println!(" - WslCmdList - Before: [{}]", &wslcmd_list); // debug
-    wslcmd_list.push(std::path::PathBuf::from("testcmd.exe")); // test
-    wslcmd_list.push(std::path::PathBuf::from("testcmd2.exe")); // test
-    wslcmd_list.push(std::path::PathBuf::from("testcmd3.exe")); // test
-    wslcmd_list.push(std::path::PathBuf::from("testcmd")); // test
+    wslcmd_list.push("testcmd"); // test
+    wslcmd_list.push("testcmd2"); // test
+    wslcmd_list.push("testcmd3"); // test
+    wslcmd_list.push("testcmd"); // test
     println!(" - WslCmdList - After:  [{}]", &wslcmd_list); // debug
 
     print_help(args.get(0).wlpath_basename().unwrap_or_default());

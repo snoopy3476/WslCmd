@@ -1,7 +1,7 @@
 use super::libwsllink::WslCmd;
 
 /// Convert Windows cmdline to WSL cmdline, then execute converted WSL command
-pub fn execution_mode(args: &[String]) -> Option<i32> {
+pub fn execution_mode(args: &[String]) -> Result<(), i32> {
     crate::__wsllink_dbg!("Execution mode - cmdline args", args); // debug msg
 
     // if WslCmd is created
@@ -12,6 +12,6 @@ pub fn execution_mode(args: &[String]) -> Option<i32> {
     // if failed to create
     else {
         crate::__wsllink_dbg!("Execution mode - failed to create 'WslCmd'"); // debug msg
-        None // return None
+        Err(1) // return None
     }
 }

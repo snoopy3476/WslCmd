@@ -41,13 +41,13 @@ fn main() {
         // comparison failed for unknown reason
         _ => {
             eprintln!("An unknown error occurred while checking args!");
-            None
+            Err(1)
         }
     };
-    crate::__wsllink_dbg!("Child WSL proc exitcode", exit_code); // debug msg
+    crate::__wsllink_dbg!("Child WSL proc exitcode", exit_code).ok(); // debug msg
 
     // exit with exitcode
-    std::process::exit(exit_code.unwrap_or(-1));
+    std::process::exit(exit_code.map_or_else(|code| code, |_| 0));
 }
 
 /// Check if execution mode,

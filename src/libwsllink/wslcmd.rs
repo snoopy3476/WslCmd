@@ -88,7 +88,7 @@ impl WslCmd {
     /// ```
     ///
     #[allow(dead_code)]
-    pub fn execute(&self) -> Option<i32> {
+    pub fn execute(&self) -> Result<(), i32> {
         use std::os::windows::process::CommandExt;
 
         // build and execute command, then get exit code
@@ -125,12 +125,17 @@ impl WslCmd {
             })
             // execute command in a bg child process first (attached later if needed)
             .spawn() // Result<Child>
-            .ok()
             // handle with process exit status
-            .and_then(|mut child| {
+            .map_or(Err(1), |mut child| {
                 match self.is_detached_proc {
-                    true => Some(0),                    // for bg process mode
-                    false => child.wait().ok()?.code(), // extract exit code
+                    // for bg process mode
+                    true => Ok(()),
+                    // extract exit code from child
+                    false => match child.wait().ok().map_or(None, |e| e.code()) {
+                        Some(0) => Ok(()),       // ok if 0
+                        Some(code) => Err(code), // err if non-zero
+                        _ => Err(1),
+                    },
                 }
             })
     }
@@ -191,8 +196,50 @@ impl WslCmd {
     // using wslpath inside wsl.
     fn arg_wrap_with_wslpath_if_absolute<T: WLStr>(arg: &T) -> Option<String> {
         arg.wlstr_as_ref()
-            .wlpath_is_absolute()
+            .filter(|s| s.wlpath_is_absolute())
             // wrap with wslpath substitution
-            .then(|| format!("$(wslpath '{}')", arg.wlstr_as_ref().unwrap_or_default()))
+            .map(|s| format!("$(wslpath '{}')", s))
+    }
+}
+
+#[cfg(test)]
+/// For module test
+mod test {
+    use super::WslCmd;
+
+    #[test]
+    fn test_execute_true() {
+        // create WslCmd & run test
+        WslCmd::new(&["true"])
+            .expect("New WslCmd")
+            .execute()
+            .expect("Execute WslCmd - true");
+    }
+
+    #[test]
+    fn test_execute_false() {
+        // create WslCmd & run test
+        WslCmd::new(&["false"])
+            .expect("New WslCmd")
+            .execute()
+            .expect_err("Execute WslCmd - false");
+    }
+
+    #[test]
+    fn test_execute_false_detached() {
+        // create WslCmd & run test
+        WslCmd::new(&[[super::CMDNAME_DELIM.to_string(), "false".to_string()].concat()])
+            .expect("New WslCmd")
+            .execute()
+            .expect("Execute WslCmd - false (detached)");
+    }
+
+    #[test]
+    fn test_execute_wslpath() {
+        // create WslCmd & run test
+        WslCmd::new(&["command", "-v", "wslpath"])
+            .expect("New WslCmd")
+            .execute()
+            .expect("Execute WslCmd - wslpath abspath");
     }
 }

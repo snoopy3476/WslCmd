@@ -8,12 +8,7 @@ pub fn management_mode(args: &[String]) -> Result<(), i32> {
     let mut wslcmd_list =
         std::env::current_exe().map_or_else(|_| Err(1), |pb| WslCmdList::new(&pb).ok_or(1))?;
 
-    println!(" - WslCmdList - Before: [{}]", &wslcmd_list); // debug
-    wslcmd_list.push("testcmd"); // test
-    wslcmd_list.push("testcmd2"); // test
-    wslcmd_list.push("testcmd3"); // test
-    wslcmd_list.push("testcmd"); // test
-    println!(" - WslCmdList - After:  [{}]", &wslcmd_list); // debug
+    crate::__wsllink_dbg!("Management mode - WslCmdList", &wslcmd_list); // debug
 
     print_help(args.get(0).wlpath_basename().unwrap_or_default());
 

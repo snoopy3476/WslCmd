@@ -256,10 +256,6 @@ impl WslCmdList {
             }
         })
     }
-
-    pub fn push<T: WLStr>(&mut self, input: T) {
-        input.wlstr_to_string().map(|s| self.cmdlist.insert(s));
-    }
 }
 
 use std::fmt;

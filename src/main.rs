@@ -44,7 +44,7 @@ fn main() {
             Err(1)
         }
     };
-    crate::__wsllink_dbg!("Child WSL proc exitcode", exit_code).ok(); // debug msg
+    crate::__wsllink_dbg!("Child WSL proc exitcode", &exit_code); // debug msg
 
     // exit with exitcode
     std::process::exit(exit_code.map_or_else(|code| code, |_| 0));

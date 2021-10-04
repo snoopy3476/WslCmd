@@ -304,8 +304,8 @@ mod test {
     }
 
     #[test]
-    fn test_permission_devmode_or_admin() {
-        const TMPDIR_POSTFIX: &str = "wslcmd-perm";
+    fn test_link() {
+        const TMPDIR_POSTFIX: &str = "wslcmd-link";
 
         // init tmpdir
         let tmpdir = init_tmpdir(TMPDIR_POSTFIX).expect("Tmp dir initialize");
@@ -314,7 +314,54 @@ mod test {
         // test linking only
         let mut wslcmd_list = WslCmdList::new(&bin1).expect("New WslCmdList");
         unit_test_mod(&tmpdir, &mut wslcmd_list, "testlink", false, TestKind::Link)
-            .expect("Checking permission: Windows developer mode enabled or run as admin");
+            .expect("Test new link: Needs Windows developer mode enabled or admin privilege");
+
+        // clean tmpdir
+        clean_tmpdir(TMPDIR_POSTFIX);
+    }
+
+    #[test]
+    fn test_unlink() {
+        const TMPDIR_POSTFIX: &str = "wslcmd-unlink";
+
+        // init tmpdir
+        let tmpdir = init_tmpdir(TMPDIR_POSTFIX).expect("Tmp dir initialize");
+        let (bin1, _) = copy_tmpbin(&tmpdir, None).expect("Bin initialize");
+
+        // test linking only
+        let mut wslcmd_list = WslCmdList::new(&bin1).expect("New WslCmdList");
+        unit_test_mod(&tmpdir, &mut wslcmd_list, "testlink", false, TestKind::Link)
+            .expect("Unlink test prepare");
+        unit_test_mod(
+            &tmpdir,
+            &mut wslcmd_list,
+            "testlink",
+            false,
+            TestKind::Unlink,
+        )
+        .expect("Test unlink");
+
+        // clean tmpdir
+        clean_tmpdir(TMPDIR_POSTFIX);
+    }
+
+    #[test]
+    fn test_list() {
+        const TMPDIR_POSTFIX: &str = "wslcmd-list";
+
+        // init tmpdir
+        let tmpdir = init_tmpdir(TMPDIR_POSTFIX).expect("Tmp dir initialize");
+        let (bin1, _) = copy_tmpbin(&tmpdir, None).expect("Bin initialize");
+        let dummyfile = tmpdir.join("dummy");
+
+        // test linking only
+        let mut wslcmd_list = WslCmdList::new(&bin1).expect("New WslCmdList");
+        unit_test_cmdlist(&wslcmd_list, &([] as [&str; 0])); // check when no other file
+        unit_test_mod(&tmpdir, &mut wslcmd_list, "testlink", false, TestKind::Link)
+            .expect("List test prepare");
+        unit_test_cmdlist(&wslcmd_list, &["testlink"]);
+        new_dummy_file(&dummyfile); // new dummy file
+        unit_test_cmdlist(&wslcmd_list, &["testlink"]);
 
         // clean tmpdir
         clean_tmpdir(TMPDIR_POSTFIX);
@@ -331,7 +378,6 @@ mod test {
         let (bin2, bin2_basename) =
             copy_tmpbin(&tmpdir, Some(&["bin2-", bin1_basename.as_str()].concat()))
                 .expect("Bin initialize");
-        let dummyfile = tmpdir.join("dummy");
 
         // create WslCmdList
         crate::__wsllink_dbg!("WslCmdList::new()");
@@ -340,12 +386,6 @@ mod test {
 
         // test with bin1 -
         // validate member funcs
-
-        //  - test progress: bin1 -> (empty list)
-        crate::__wsllink_dbg!("unit_test_cmdlist() - should be empty");
-        unit_test_cmdlist(&wslcmd_list, &([] as [&str; 0])); // check when no other file
-        new_dummy_file(&dummyfile); // new dummy file
-        unit_test_cmdlist(&wslcmd_list, &([] as [&str; 0])); // check when other irrelevant file
 
         crate::__wsllink_dbg!(
             "unit_test_link_wslcmd() - called for each - testbin, (cur-binname), emacs"
@@ -358,7 +398,6 @@ mod test {
 
         //  - test progress: bin1 -> emacs, testbin, testbin2
         crate::__wsllink_dbg!("unit_test_cmdlist() - should be 'emacs' and 'testbin'");
-        unit_test_cmdlist(&wslcmd_list, &["emacs", "testbin", "testbin2"]);
         unit_test_cmdlist(&wslcmd_list, &["emacs", "testbin", "testbin2"]);
 
         //  - test progress: bin1 -> testbin, testbin2

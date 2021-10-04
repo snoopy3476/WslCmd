@@ -7,7 +7,10 @@ pub fn execution_mode(args: &[String]) -> Result<(), i32> {
     // if WslCmd is created
     if let Some(wsl_cmd) = WslCmd::new(&args) {
         crate::__wsllink_dbg!("Execution mode - 'WslCmd' created", &wsl_cmd); // debug msg
-        wsl_cmd.execute() // return exitcode of WSL child proc
+        wsl_cmd
+            .execute()
+            // return exitcode of WSL child proc
+            .map_or_else(|r| Err(r.code.unwrap_or(-1)), |_| Ok(()))
     }
     // if failed to create
     else {

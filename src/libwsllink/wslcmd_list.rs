@@ -1,7 +1,7 @@
 use derive_getters::Getters;
 
 use super::{WLPath, WLStr};
-use rayon::prelude::{IntoParallelIterator, IntoParallelRefIterator, ParallelIterator};
+use itertools::Itertools;
 use std::collections::HashSet;
 use std::ffi::OsStr;
 use std::io;
@@ -109,9 +109,14 @@ impl WslCmdList {
                     "link_wslcmd(): Invalid cmdname",
                 ))?)
         }))
+        // check if given cmd is not wslcmd file
+        .filter(|pb| !self.is_wslcmd_file(pb))
         // create new symlink
         .map_or(
-            Err(Error::new(ErrorKind::Other, "Should not be reached")),
+            Err(Error::new(
+                ErrorKind::AlreadyExists,
+                "link_wslcmd(): WslCmd already exists for given cmdname",
+            )),
             |pb| {
                 std::os::windows::fs::symlink_file(
                     &self.binpath, // link origpath
@@ -215,7 +220,7 @@ impl WslCmdList {
                 .wlpath_parent()? // &Path
                 // get all file list
                 .wlpath_read_dir()? // Vec<PathBuf>
-                .into_par_iter()
+                .into_iter()
                 // filter files with are only wslcmd
                 .filter_map(|pb_f| {
                     self.is_wslcmd_file(&pb_f)
@@ -267,11 +272,11 @@ impl fmt::Display for WslCmdList {
                 .as_ref()
                 // if recent -> self data, if outdated -> new data
                 .map_or(&self.cmdlist, |tuple| &tuple.0)
-                // convert to basename
-                .par_iter()
+                // convert to basename and sort
+                .iter()
                 .filter_map(|pb| pb.wlpath_basename())
+                .sorted()
                 // join all wslcmd into one string
-                .collect::<Vec<&str>>()
                 .join("\"    \""), // wrap each cmdname with quotes
         )
         // write only if non-empty

@@ -4,7 +4,7 @@ use super::WLPath;
 use super::WLStr;
 
 /// Delimiter of command name, which divides into bg proc mode, wsl command name, wsl user name
-const CMDNAME_DELIM: char = '$';
+const CMDNAME_DELIM: char = '!';
 /// Name of env arg, which prevent argument path conversion if set
 const ENVFLAG_NO_ARGCONV: &str = "WSLLINK_NO_ARGCONV";
 

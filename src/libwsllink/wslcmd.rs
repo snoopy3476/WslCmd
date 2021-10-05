@@ -78,17 +78,21 @@ impl WslCmd {
     /// # Return
     ///
     /// [`Ok`]\([`WslCmdExitStatus`]\) if the command is succeeded, [`Err`]\([`WslCmdExitStatus`]\) if failed.
-    ///   (Always [`Ok`] when [`is_detached_proc`](Self::is_detached_proc)
+    /// * For non-detached WSL command, [`Ok`] when the WSL command executed and returned exit code 0.
+    /// * For detached WSL command \([`WslCmd`] with [`is_detached_proc`](Self::is_detached_proc) set\), [`Ok`] only means WSL command was executed, and does not necessarily mean exit code is 0.
+    /// * If [`Err`] but the exit code is [`Some`]\(0\), there was an error before executing the WSL command.
+    /// * If [`Err`] and the exit code is [`Some`]\([`i32`]\) \(Other than 0\), containing WSL command was executed and exited with the exit code.
+    /// * If [`Err`] and the exit code is [`None`], containing WSL command was executed but terminated by a signal.
     ///
     /// # Examples
     ///
     /// ```
     /// let wslcmd: WslCmd = WslCmd::new(&args).expect("New Wslcmd");
-    /// let exit_status: Result<WslCmdExitStatus, WslCmdExitStatus> = wslcmd.execute();
+    /// let exit_status: WslCmdResult = wslcmd.execute();
     /// ```
     ///
     #[allow(dead_code)]
-    pub fn execute(&self) -> Result<WslCmdExitStatus, WslCmdExitStatus> {
+    pub fn execute(&self) -> WslCmdResult {
         self.execute_with_stdin(None)
     }
 
@@ -101,14 +105,13 @@ impl WslCmd {
     ///
     /// # Return
     ///
-    /// [`Ok`]\([`WslCmdExitStatus`]\) if the command is succeeded, [`Err`]\([`WslCmdExitStatus`]\) if failed.
-    ///   (Always [`Ok`] when [`is_detached_proc`](Self::is_detached_proc)
+    /// Same as [`execute()`](Self::execute), but contains stdout and stderr output in returned [`WslCmdExitStatus`] if any.
     ///
     /// # Examples
     ///
     /// ```
-    /// let wslcmd = WslCmd::new(&["cat"]).expect("New Wslcmd");
-    /// let exit_status = wslcmd.execute_with_stdin(Some("Stdin input for WslCmd proc"));
+    /// let wslcmd: WslCmd = WslCmd::new(&["cat"]).expect("New Wslcmd");
+    /// let exit_status: WslCmdResult = wslcmd.execute_with_stdin(Some("Stdin str"));
     /// let stdout_str: Option<String> = exit_status
     ///     .as_ref()
     ///     .ok()
@@ -118,10 +121,7 @@ impl WslCmd {
     /// ```
     ///
     #[allow(dead_code)]
-    pub fn execute_with_stdin(
-        &self,
-        stdin_input: Option<&str>,
-    ) -> Result<WslCmdExitStatus, WslCmdExitStatus> {
+    pub fn execute_with_stdin(&self, stdin_input: Option<&str>) -> WslCmdResult {
         use std::io::Write;
         use std::os::windows::process::CommandExt;
         use std::process::{Command, Stdio};
@@ -265,6 +265,8 @@ impl WslCmd {
     }
 }
 
+type WslCmdResult = Result<WslCmdExitStatus, WslCmdExitStatus>;
+
 /// Exit status and output of executed WSL cmdline
 #[derive(Debug)]
 pub struct WslCmdExitStatus {
@@ -291,7 +293,7 @@ impl WslCmdExitStatus {
     /// [`Ok`]\([`WslCmdExitStatus`]\) if output status is success,
     /// [`Err`]\([`WslCmdExitStatus`]\) if not
     ///
-    pub fn new(output: std::process::Output) -> Result<Self, Self> {
+    pub fn new(output: std::process::Output) -> WslCmdResult {
         let ret = Self {
             code: output.status.code(),
             stdout: Self::vec_wrap(output.stdout),
@@ -306,7 +308,7 @@ impl WslCmdExitStatus {
 
     /// Default [`Ok`] Result for [`WslCmdExitStatus`]
     #[inline]
-    pub fn ok() -> Result<Self, Self> {
+    pub fn ok() -> WslCmdResult {
         Ok(Self {
             code: Some(0),
             stdout: None,
@@ -316,9 +318,9 @@ impl WslCmdExitStatus {
 
     /// Default [`Err`] Result for [`WslCmdExitStatus`]
     #[inline]
-    pub fn err() -> Result<Self, Self> {
+    pub fn err() -> WslCmdResult {
         Err(Self {
-            code: Some(-1),
+            code: Some(0),
             stdout: None,
             stderr: None,
         })

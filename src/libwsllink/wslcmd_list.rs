@@ -45,12 +45,14 @@ impl WslCmdList {
     ///
     /// # Return
     ///
-    /// A newly created [`WslCmdList`], initialized with wslcmd list
+    /// A newly created [`Some`]\([`WslCmdList`]\), initialized with wslcmd list.
+    ///
+    /// [`None`] if failed to initialize [`WslCmdList`].
     ///
     /// # Examples
     ///
     /// ```
-    /// let wslcmd_list: WslCmdList = WslCmdList::new(&"/path/to/target/exe");
+    /// let wslcmd_list = WslCmdList::new(&"/path/to/target/exe");
     /// ```
     ///
     #[allow(dead_code)]
@@ -178,7 +180,7 @@ impl WslCmdList {
 
     // refresh wslcmd list to latest. returns ref of mut self for chaining.
     fn refresh_wslcmd_list(&mut self) -> &mut Self {
-        self.get_wslcmd_list_if_changed(&self.binpath, None)
+        self.get_wslcmd_list_if_changed()
             .map(|(cmdlist, cmdlist_time)| {
                 self.cmdlist = cmdlist;
                 self.cmdlist_time = cmdlist_time;
@@ -188,12 +190,8 @@ impl WslCmdList {
     }
 
     // get list of wslcmd only if parent directory is changed
-    fn get_wslcmd_list_if_changed<T: WLPath>(
-        &self,
-        binpath: &T,
-        cmdlist_time: Option<SystemTime>,
-    ) -> Option<(HashSet<String>, Option<SystemTime>)> {
-        binpath
+    fn get_wslcmd_list_if_changed(&self) -> Option<(HashSet<String>, Option<SystemTime>)> {
+        self.binpath
             // get parent dir
             .wlpath_parent()? // &Path
             // get last modified time
@@ -203,10 +201,10 @@ impl WslCmdList {
             // Some(t) if to be refreshed
             .filter(|t_dir| {
                 // check if dir mtime is later than the time of cmdlist
-                cmdlist_time.map_or(true, |t_list| t_dir.gt(&t_list))
+                self.cmdlist_time.map_or(true, |t_list| t_dir.gt(&t_list))
             })
             // return tuple (cmdlist, dir_mtime) if to be refreshed
-            .map_or(None, |t| Some((self.wslcmd_list(binpath)?, Some(t))))
+            .map_or(None, |t| Some((self.wslcmd_list(&self.binpath)?, Some(t))))
     }
 
     // get list of wslcmd
@@ -265,7 +263,7 @@ impl fmt::Display for WslCmdList {
         // build string to be displayed
         Some(
             // get new list if self list data is outdated
-            self.get_wslcmd_list_if_changed(&self.binpath, self.cmdlist_time)
+            self.get_wslcmd_list_if_changed()
                 .as_ref()
                 // if recent -> self data, if outdated -> new data
                 .map_or(&self.cmdlist, |tuple| &tuple.0)
@@ -309,7 +307,7 @@ mod test {
 
         // test linking only
         let mut wslcmd_list = WslCmdList::new(&bin1).expect("New WslCmdList");
-        unit_test_mod(&tmpdir, &mut wslcmd_list, "testlink", false, TestKind::Link)
+        unit_test_mod(&tmpdir, &mut wslcmd_list, "test", false, TestKind::Link)
             .expect("Test new link: Needs Windows developer mode enabled or admin privilege");
 
         // clean tmpdir
@@ -326,16 +324,10 @@ mod test {
 
         // test linking only
         let mut wslcmd_list = WslCmdList::new(&bin1).expect("New WslCmdList");
-        unit_test_mod(&tmpdir, &mut wslcmd_list, "testlink", false, TestKind::Link)
+        unit_test_mod(&tmpdir, &mut wslcmd_list, "test", false, TestKind::Link)
             .expect("Unlink test prepare");
-        unit_test_mod(
-            &tmpdir,
-            &mut wslcmd_list,
-            "testlink",
-            false,
-            TestKind::Unlink,
-        )
-        .expect("Test unlink");
+        unit_test_mod(&tmpdir, &mut wslcmd_list, "test", false, TestKind::Unlink)
+            .expect("Test unlink");
 
         // clean tmpdir
         clean_tmpdir(TMPDIR_POSTFIX);
@@ -370,69 +362,52 @@ mod test {
 
         // init tmpdir
         let tmpdir = init_tmpdir(TMPDIR_POSTFIX).expect("Tmp dir initialize");
-        let (bin1, bin1_basename) = copy_tmpbin(&tmpdir, None).expect("Bin initialize");
-        let (bin2, bin2_basename) =
-            copy_tmpbin(&tmpdir, Some(&["bin2-", bin1_basename.as_str()].concat()))
-                .expect("Bin initialize");
-
-        // create WslCmdList
-        crate::__wsllink_dbg!("WslCmdList::new()");
-        let mut wslcmd_list = WslCmdList::new(&bin1).expect("New WslCmdList");
-        crate::__wsllink_dbg!("", &wslcmd_list);
+        let (bin1, cmd1) = copy_tmpbin(&tmpdir, None).expect("Bin initialize");
+        let (bin2, cmd2) =
+            copy_tmpbin(&tmpdir, Some(&["bin2-", cmd1.as_str()].concat())).expect("Bin initialize");
 
         // test with bin1 -
         // validate member funcs
+        let mut wslcmd_list = WslCmdList::new(&bin1).expect("New WslCmdList");
 
-        crate::__wsllink_dbg!(
-            "unit_test_link_wslcmd() - called for each - testbin, (cur-binname), emacs"
+        //  - test progress: bin1 -> emacs, t
+        unit_test_link_wslcmd(
+            &tmpdir,
+            &mut wslcmd_list,
+            &[("t", false), (&cmd1, true), ("emacs", false), (&cmd2, true)],
         );
-        unit_test_link_wslcmd(&tmpdir, &mut wslcmd_list, "testbin", false);
-        unit_test_link_wslcmd(&tmpdir, &mut wslcmd_list, "testbin2", false);
-        unit_test_link_wslcmd(&tmpdir, &mut wslcmd_list, &bin1_basename, true); // must fail
-        unit_test_link_wslcmd(&tmpdir, &mut wslcmd_list, "emacs", false);
-        unit_test_link_wslcmd(&tmpdir, &mut wslcmd_list, &bin2_basename, true); // must fail
+        unit_test_cmdlist(&wslcmd_list, &["emacs", "t"]);
 
-        //  - test progress: bin1 -> emacs, testbin, testbin2
-        crate::__wsllink_dbg!("unit_test_cmdlist() - should be 'emacs' and 'testbin'");
-        unit_test_cmdlist(&wslcmd_list, &["emacs", "testbin", "testbin2"]);
-
-        //  - test progress: bin1 -> testbin, testbin2
-        crate::__wsllink_dbg!(
-            "unit_test_unlink_wslcmd() - called for each - emacs, asdf, (cur-binname)"
+        //  - test progress: bin1 -> t
+        unit_test_unlink_wslcmd(
+            &tmpdir,
+            &mut wslcmd_list,
+            &[("a", true), ("emacs", false), (&cmd1, true), (&cmd2, true)],
         );
-        unit_test_unlink_wslcmd(&tmpdir, &mut wslcmd_list, "emacs", false);
-        unit_test_unlink_wslcmd(&tmpdir, &mut wslcmd_list, "asdf", true); // must fail
-        unit_test_unlink_wslcmd(&tmpdir, &mut wslcmd_list, &bin1_basename, true); // must fail
-        unit_test_unlink_wslcmd(&tmpdir, &mut wslcmd_list, &bin2_basename, true); // must fail
+        unit_test_cmdlist(&wslcmd_list, &["t"]);
 
-        crate::__wsllink_dbg!("unit_test_cmdlist() - should be 'testbin, testbin2'");
-        unit_test_cmdlist(&wslcmd_list, &["testbin", "testbin2"]);
-
-        //  - test progress: bin1 -> testbin2
-        crate::__wsllink_dbg!("unit_test_unlink_wslcmd() - called twice for - testbin");
-        unit_test_unlink_wslcmd(&tmpdir, &mut wslcmd_list, "testbin", false);
-        unit_test_unlink_wslcmd(&tmpdir, &mut wslcmd_list, "testbin", true); // must fail
-
-        crate::__wsllink_dbg!("unit_test_cmdlist() - should be 'testbin2'");
-        unit_test_cmdlist(&wslcmd_list, &["testbin2"]);
+        //  - test progress: bin1 -> (empty)
+        unit_test_unlink_wslcmd(&tmpdir, &mut wslcmd_list, &[("t", false), ("t", true)]);
+        unit_test_cmdlist(&wslcmd_list, &([] as [&str; 0]));
 
         // test with new bin2 -
         // check if bin1 and bin2 in the same dir are working separated on wslcmd_list
-
-        //  - test progress: bin1 -> testbin2, bin2 -> (empty)
-        crate::__wsllink_dbg!("WslCmdList::new()");
         let mut wslcmd2_list = WslCmdList::new(&bin2).expect("New WslCmdList");
-        crate::__wsllink_dbg!("", &wslcmd2_list);
-        unit_test_cmdlist(&wslcmd_list, &["testbin2"]); // only list for wslcmd_list
+
+        //  - test progress: bin1 -> t2, bin2 -> (empty)
+        unit_test_link_wslcmd(&tmpdir, &mut wslcmd_list, &[("t2", false)]);
+        unit_test_cmdlist(&wslcmd_list, &["t2"]); // only list for wslcmd_list
         unit_test_cmdlist(&wslcmd2_list, &([] as [&str; 0])); // only list for wslcmd2_list
 
-        //  - test progress: bin1 -> testbin2, bin2 -> testbin
-        unit_test_link_wslcmd(&tmpdir, &mut wslcmd2_list, "testbin", false);
-        unit_test_link_wslcmd(&tmpdir, &mut wslcmd2_list, "testbin", true); // must fail
-        unit_test_link_wslcmd(&tmpdir, &mut wslcmd2_list, "testbin", true); // must fail
+        //  - test progress: bin1 -> t2, bin2 -> t
+        unit_test_link_wslcmd(
+            &tmpdir,
+            &mut wslcmd2_list,
+            &[("t", false), ("t", true), ("t", true)],
+        );
 
-        unit_test_cmdlist(&wslcmd_list, &["testbin2"]); // only list for wslcmd_list
-        unit_test_cmdlist(&wslcmd2_list, &["testbin"]); // only list for wslcmd2_list
+        unit_test_cmdlist(&wslcmd_list, &["t2"]); // only list for wslcmd_list
+        unit_test_cmdlist(&wslcmd2_list, &["t"]); // only list for wslcmd2_list
 
         // clean tmpdir
         clean_tmpdir(TMPDIR_POSTFIX);
@@ -488,21 +463,29 @@ mod test {
     fn unit_test_link_wslcmd(
         tmpdir: &PathBuf,
         wslcmd_list: &mut WslCmdList,
-        cmdname: &str,
-        should_err: bool,
+        cmdname_and_shoulderr: &[(&str, bool)],
     ) {
-        unit_test_mod(tmpdir, wslcmd_list, cmdname, should_err, TestKind::Link)
-            .expect(&["unit_test_link_wslcmd(\"", cmdname, "\")"].concat())
+        for cur_elem in cmdname_and_shoulderr {
+            unit_test_mod(tmpdir, wslcmd_list, cur_elem.0, cur_elem.1, TestKind::Link)
+                .expect(&["unit_test_link_wslcmd(\"", cur_elem.0, "\")"].concat())
+        }
     }
 
     fn unit_test_unlink_wslcmd(
         tmpdir: &PathBuf,
         wslcmd_list: &mut WslCmdList,
-        cmdname: &str,
-        should_err: bool,
+        cmdname_and_shoulderr: &[(&str, bool)],
     ) {
-        unit_test_mod(tmpdir, wslcmd_list, cmdname, should_err, TestKind::Unlink)
-            .expect(&["unit_test_unlink_wslcmd(\"", cmdname, "\")"].concat())
+        for cur_elem in cmdname_and_shoulderr {
+            unit_test_mod(
+                tmpdir,
+                wslcmd_list,
+                cur_elem.0,
+                cur_elem.1,
+                TestKind::Unlink,
+            )
+            .expect(&["unit_test_unlink_wslcmd(\"", cur_elem.0, "\")"].concat())
+        }
     }
 
     fn unit_test_cmdlist<T: WLStr>(wslcmd_list: &WslCmdList, expected_result: &[T]) {

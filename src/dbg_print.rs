@@ -12,7 +12,7 @@
 /// // print only vars
 /// //   almost same with dbg!() macro,
 /// //   except that this macro only prints on debug mode
-/// __wsllink_dbg!("", var1, var2, ...);
+/// __wsllink_dbg!(var1, var2, ...);
 /// ```
 ///
 #[macro_export]
@@ -40,7 +40,6 @@ macro_rules! __wsllink_dbg {
 
     // for label and vars
     //   crate::__wsllink_dbg!("label", var1, var2, ...);
-    //   crate::__wsllink_dbg!("", var1, var2, ...);
     ($label:literal, $($args:expr), +) => {
         {
 
@@ -62,6 +61,29 @@ macro_rules! __wsllink_dbg {
 
         }
     };
+
+
+    // for vars only
+    //   crate::__wsllink_dbg!(var1, var2, ...);
+    ($($args:expr), +) => {
+        {
+
+            // for debug mode
+            #[cfg(debug_assertions)]
+            {
+                // print body
+                crate::__wsllink_dbg_body!($($args),+)
+            }
+
+            // for release mode
+            #[cfg(not(debug_assertions))]
+            {
+                // do nothing on release mode, just removing unused warnings
+                ($($args), +)
+            }
+
+        }
+    };
 }
 
 /// Prints debug msg header only, if str is not empty (for the macro [`__wsllink_dbg`])
@@ -71,24 +93,22 @@ macro_rules! __wsllink_dbg_header {
     ($label:literal) => {
         #[cfg(debug_assertions)]
         {
-            if !$label.is_empty() {
-                use termcolor::{Color, ColorChoice, ColorSpec, StandardStream, WriteColor};
-                let mut stderr = StandardStream::stderr(ColorChoice::Always);
+            use termcolor::{Color, ColorChoice, ColorSpec, StandardStream, WriteColor};
+            let mut stderr = StandardStream::stderr(ColorChoice::Always);
 
-                // set color
-                stderr
-                    .set_color(
-                        ColorSpec::new()
-                            .set_fg(Some(Color::Black))
-                            .set_bg(Some(Color::Yellow)),
-                    )
-                    .ok();
-                // print header
-                eprint!(" [WSLLINK_DBG] {} ", $label);
-                // reset color
-                stderr.reset().ok();
-                eprintln!();
-            }
+            // set color
+            stderr
+                .set_color(
+                    ColorSpec::new()
+                        .set_fg(Some(Color::Black))
+                        .set_bg(Some(Color::Yellow)),
+                )
+                .ok();
+            // print header
+            eprint!(" [WSLLINK_DBG] {} ", $label);
+            // reset color
+            stderr.reset().ok();
+            eprintln!();
         }
     };
 }

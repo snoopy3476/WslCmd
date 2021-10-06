@@ -10,12 +10,20 @@ use std::ops::*;
 use std::path::PathBuf;
 use std::time::SystemTime;
 
+use super::CMDNAME_DELIM;
+
 /// Extension of Windows binary
 const BINARY_EXTENSION: &str = "exe";
 
 macro_rules! wslcmd_with_ext {
     ($label:expr) => {
-        [$label, ".", BINARY_EXTENSION].concat()
+        format!("{}.{}", $label, BINARY_EXTENSION)
+    };
+}
+
+macro_rules! wslcmd_detached_bin {
+    ($label:expr) => {
+        format!("{}{}", CMDNAME_DELIM, $label)
     };
 }
 
@@ -92,38 +100,82 @@ impl WslCmdList {
     ///
     #[allow(dead_code)]
     pub fn link_wslcmd<T: WLPath>(&mut self, cmdname: &T) -> io::Result<()> {
-        // replace only filename with cmdname from binpath
-        Some(self.binpath.with_file_name({
-            wslcmd_with_ext!(cmdname
-                // get filename
-                .wlpath_filename()
-                // check if cmdname is same as orig binname
-                .filter(|s_wslcmd| {
-                    self.orig_binpath
-                        .wlpath_basename()
-                        .map_or(false, |s_orig| &s_orig != s_wslcmd)
+        // create new PathBuf of cmd: replace only filename with cmdname from binpath
+        {
+            cmdname
+                .wlpath_filename() // get filename only, discarding possible parent dir name
+                .and_then(|s_cmd| Some(wslcmd_with_ext!(s_cmd))) // append extension to cmdname
+                .and_then(|s_file| Some(self.binpath.with_file_name(s_file))) // to abs path
+                .ok_or(Error::new(ErrorKind::InvalidInput, "Invalid cmdname"))
+        }
+        // Ok if valid cmdname
+        .and_then(|pb_cmd| {
+            self.orig_binpath
+                .wlpath_basename()
+                .and_then(|s_orig| pb_cmd.wlpath_filename().map(|s_cmd| (s_orig, s_cmd)))
+                // bool expression
+                .map_or(false, |(s_orig, s_cmd)| {
+                    {
+                        // cmdname is not the same with orig binname
+                        s_orig != s_cmd
+                    }
+                    .bitand({
+                        // cmdname is not detached cmd name pattern (starts with cmdname_delim
+                        !s_cmd.starts_with(CMDNAME_DELIM)
+                    })
                 })
-                // Option -> Result
+                // bool -> Result
+                .then(|| pb_cmd)
+                .ok_or(Error::new(ErrorKind::InvalidInput, "Invalid cmdname"))
+        })
+        // Ok if given cmd is not wslcmd file
+        .and_then(|pb_cmd| {
+            // bool expression
+            (!self.is_wslcmd_file(&pb_cmd))
+                // bool -> Result
+                .then(|| pb_cmd)
                 .ok_or(Error::new(
-                    ErrorKind::InvalidInput,
-                    "link_wslcmd(): Invalid cmdname",
-                ))?)
-        }))
-        // check if given cmd is not wslcmd file
-        .filter(|pb| !self.is_wslcmd_file(pb))
-        // create new symlink
-        .map_or(
-            Err(Error::new(
-                ErrorKind::AlreadyExists,
-                "link_wslcmd(): WslCmd already exists for given cmdname",
-            )),
-            |pb| {
+                    ErrorKind::AlreadyExists,
+                    "WslCmd already exists for given cmdname",
+                ))
+        })
+        // create new symlink chain (wslcmd -> wslcmd_detached -> origbin)
+        .and_then(|pb_cmd| {
+            let wslcmd_detached_filename = wslcmd_detached_bin!(
+                // wslcmd filename
+                pb_cmd
+                    .wlpath_filename()
+                    .ok_or(Error::new(ErrorKind::Other, "Invalid cmdname"))?
+            );
+
+            // first create symlink (wslcmd_detached -> origbin)
+            std::os::windows::fs::symlink_file(
+                // target: origbin filename (relative)
+                self.binpath
+                    .wlpath_filename()
+                    .ok_or(Error::new(ErrorKind::Other, "Invalid exe name"))?,
+                // symlink file: wslcmd_detached (absolute)
+                &pb_cmd.with_file_name(&wslcmd_detached_filename),
+            )
+            // if succeeded, create another symlink (wslcmd -> wslcmd_detached)
+            .and_then(|()| {
                 std::os::windows::fs::symlink_file(
-                    &self.binpath, // link origpath
-                    pb,            // link file
+                    // target: wslcmd_detached (relative)
+                    &wslcmd_detached_filename,
+                    // symlink file: wslcmd (absolute)
+                    &pb_cmd,
                 )
-            },
-        )
+                // if second failed, clean progress (remove first created link)
+                .or_else(|e| {
+                    std::fs::remove_file(
+                        // remove wslcmd_detached
+                        &pb_cmd.with_file_name(&wslcmd_detached_filename),
+                    )
+                    .ok();
+                    Err(e) // bypass err
+                })
+            })
+        })
         // refresh wslcmd list if succeeded
         .and_then(|_| {
             self.refresh_wslcmd_list();
@@ -150,32 +202,77 @@ impl WslCmdList {
     ///
     #[allow(dead_code)]
     pub fn unlink_wslcmd<T: WLPath>(&mut self, cmdname: &T) -> io::Result<()> {
-        // replace only filename with cmdname from self binpath,
-        Some(self.binpath.with_file_name({
-            wslcmd_with_ext!(cmdname
-                // get filename
-                .wlpath_filename()
-                // check if cmdname is same as orig binname
-                .filter(|s_wslcmd| self
-                    .orig_binpath
-                    .wlpath_basename()
-                    .map_or(false, |s_orig| &s_orig != s_wslcmd))
-                // Option -> Result
+        // create new PathBuf of cmd: replace only filename with cmdname from binpath
+        {
+            cmdname
+                .wlpath_filename() // get filename only, discarding possible parent dir name
+                .and_then(|s_cmd| Some(wslcmd_with_ext!(s_cmd))) // append extension to cmdname
+                .and_then(|s_file| Some(self.binpath.with_file_name(s_file))) // to abs path
+                .ok_or(Error::new(ErrorKind::InvalidInput, "Invalid cmdname"))
+        }
+        // Ok if valid cmdname
+        .and_then(|pb_cmd| {
+            self.orig_binpath
+                .wlpath_basename()
+                .and_then(|s_orig| pb_cmd.wlpath_filename().map(|s_cmd| (s_orig, s_cmd)))
+                // bool expression
+                .map_or(false, |(s_orig, s_cmd)| {
+                    {
+                        // cmdname is not the same with orig binname
+                        s_orig != s_cmd
+                    }
+                    .bitand({
+                        // cmdname is not detached cmd name pattern (starts with cmdname_delim
+                        !s_cmd.starts_with(CMDNAME_DELIM)
+                    })
+                })
+                // bool -> Result
+                .then(|| pb_cmd)
+                .ok_or(Error::new(ErrorKind::InvalidInput, "Invalid cmdname"))
+        })
+        // Ok if given cmd is wslcmd file
+        .and_then(|pb_cmd| {
+            // bool expression
+            self.is_wslcmd_file(&pb_cmd)
+                // bool -> Result
+                .then(|| pb_cmd)
                 .ok_or(Error::new(
-                    ErrorKind::InvalidInput,
-                    "link_wslcmd(): Invalid cmdname",
-                ))?)
-        }))
-        // check if wslcmd file
-        .filter(|pb| self.is_wslcmd_file(pb))
+                    ErrorKind::AlreadyExists,
+                    "WslCmd already exists for given cmdname",
+                ))
+        })
         // remove wslcmd symlink
-        .map_or(
-            Err(Error::new(
-                ErrorKind::NotFound,
-                "unlink_wslcmd(): WslCmd not found for given cmdname",
-            )),
-            |pb| std::fs::remove_file(self.binpath.with_file_name(pb)),
-        )
+        .and_then(|pb_cmd| {
+            let wslcmd_detached_filename = wslcmd_detached_bin!(
+                // wslcmd filename
+                pb_cmd
+                    .wlpath_filename()
+                    .ok_or(Error::new(ErrorKind::Other, "Invalid cmdname"))?
+            );
+
+            // remove pb_cmd and pb_cmd_detached
+            {
+                // remove wslcmd (wslcmd -> wslcmd_detached)
+                std::fs::remove_file(&pb_cmd)
+            }
+            .and_then(|_| {
+                // remove wslcmd_detached (wslcmd_detached -> orig) if succeeded before
+                std::fs::remove_file(pb_cmd.with_file_name(&wslcmd_detached_filename)).or_else(
+                    |e| {
+                        // if second failed, do restore progress (re-link first removed link)
+                        std::os::windows::fs::symlink_file(
+                            // target: wslcmd_detached (relative)
+                            &wslcmd_detached_filename,
+                            // symlink file: wslcmd (absolute)
+                            &pb_cmd,
+                        )
+                        .ok();
+
+                        Err(e) // bypass err
+                    },
+                )
+            })
+        })
         // refresh wslcmd list if succeeded
         .and_then(|_| {
             self.refresh_wslcmd_list();
@@ -186,9 +283,10 @@ impl WslCmdList {
     // refresh wslcmd list to latest. returns ref of mut self for chaining.
     fn refresh_wslcmd_list(&mut self) -> &mut Self {
         self.get_wslcmd_list_if_changed()
-            .map(|(cmdlist, cmdlist_time)| {
+            .and_then(|(cmdlist, cmdlist_time)| {
                 self.cmdlist = cmdlist;
                 self.cmdlist_time = cmdlist_time;
+                Some(())
             });
 
         self
@@ -212,7 +310,7 @@ impl WslCmdList {
             .map_or(None, |t| Some((self.wslcmd_list(&self.binpath)?, Some(t))))
     }
 
-    // get list of wslcmd
+    // get list of wslcmd from the fs directly
     fn wslcmd_list<T: WLPath>(&self, binpath: &T) -> Option<HashSet<String>> {
         Some(
             binpath
@@ -233,31 +331,63 @@ impl WslCmdList {
 
     // check if given path is wslcmd link
     fn is_wslcmd_file<T: WLPath>(&self, binpath: &T) -> bool {
-        binpath.wlpath_clone_to_pathbuf().map_or(false, {
-            // check if pb_file is wslcmd
-            |pb_file| {
-                // file with BINARY_EXTENSION extension
+        // binpath -> (pathbuf_target, pathbuf_followed)
+        {
+            binpath.wlpath_as_path().and_then(|p| {
+                Some((
+                    // pb_symlink
+                    p.to_path_buf(),
+                    // pb_target
+                    p.read_link()
+                        .map_or(None, |pb| Some(p.with_file_name(pb.wlpath_as_ref()?)))?,
+                ))
+            })
+        }
+        // check if wslcmd file using two pathbufs
+        .and_then(
+            // check if pb_symlink is wslcmd
+            |(pb_symlink, pb_target)| {
+                // check if both symlink/target pb is symlink to the self bin
                 {
-                    (
-                        // OsStr extension
-                        (pb_file.extension().and_then(OsStr::to_str))
-                    ) == (
-                        // expected bin extension
-                        Some(BINARY_EXTENSION)
-                    )
+                    [&pb_symlink, &pb_target]
+                        .iter()
+                        .map(|pb| {
+                            // bool expression
+                            {
+                                // OsStr extension == expected bin extension
+                                pb.extension().and_then(OsStr::to_str)? == BINARY_EXTENSION
+                            }
+                            .bitand({
+                                // ... and pointing to same bin
+                                pb.wlpath_canonicalize()? == self.orig_binpath
+                            })
+                            .bitand(
+                                // ... and not the original bin itself
+                                pb.wlpath_filename()? != self.binpath.wlpath_filename()?,
+                            )
+                            .then(|| ()) // bool to Option
+                        })
+                        .all(|pred| pred.is_some())
                 }
-                // ... and pointing to same bin
-                .bitand(
-                    pb_file
-                        .wlpath_canonicalize()
-                        .map_or(false, |pb_file_orig| pb_file_orig == self.orig_binpath),
-                )
-                // ... and not the original bin itself
-                .bitand(pb_file.wlpath_basename().map_or(false, |s| {
-                    s != self.binpath.wlpath_basename().unwrap_or_default()
-                }))
-            }
-        })
+                // check if target is non-detached WslCmd
+                .bitand({
+                    // bool expression
+                    {
+                        // not starting with CMDNAME_DELIM
+                        !pb_symlink.wlpath_filename()?.starts_with(CMDNAME_DELIM)
+                    }
+                    .bitand(
+                        // link behind the current file is detached bin symlink
+                        pb_target
+                            == pb_target.with_file_name(wslcmd_detached_bin!(
+                                pb_symlink.wlpath_filename()?
+                            )),
+                    )
+                })
+                .then(|| ()) // final bool to Option
+            },
+        )
+        .is_some()
     }
 }
 
@@ -265,6 +395,8 @@ use std::fmt;
 /// For display formatted print
 impl fmt::Display for WslCmdList {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        use ansi_term::Colour;
+
         // build string to be displayed
         Some(
             // get new list if self list data is outdated
@@ -276,12 +408,13 @@ impl fmt::Display for WslCmdList {
                 .iter()
                 .filter_map(|pb| pb.wlpath_basename())
                 .sorted()
+                .map(|s| Colour::Green.paint(s)) ////////////////////////////////////////////
                 // join all wslcmd into one string
-                .join("\"    \""), // wrap each cmdname with quotes
+                .join("'    '"), // wrap each cmdname with quotes
         )
         // write only if non-empty
         .filter(|s| !s.is_empty()) // if empty, set to None
-        .map_or(Ok(()), |s| write!(f, "\"{}\"", s)) // write to f if not None
+        .map_or(Ok(()), |s| write!(f, "'{}'", s)) // write to f if not None
     }
 }
 
@@ -289,7 +422,7 @@ impl fmt::Display for WslCmdList {
 /// For module test
 mod test {
     use super::super::{WLPath, WLStr};
-    use super::{WslCmdList, BINARY_EXTENSION};
+    use super::{WslCmdList, BINARY_EXTENSION, CMDNAME_DELIM};
     use std::io;
     use std::io::{Error, ErrorKind};
     use std::ops::*;
@@ -297,6 +430,7 @@ mod test {
 
     const TEST_TMP_DIR: &str = "wsllink_tmpdir_test-wslcmd-list_";
 
+    #[derive(Debug)]
     enum TestKind {
         Link,
         Unlink,
@@ -369,7 +503,7 @@ mod test {
         let tmpdir = init_tmpdir(TMPDIR_POSTFIX).expect("Tmp dir initialize");
         let (bin1, cmd1) = copy_tmpbin(&tmpdir, None).expect("Bin initialize");
         let (bin2, cmd2) =
-            copy_tmpbin(&tmpdir, Some(&["bin2-", cmd1.as_str()].concat())).expect("Bin initialize");
+            copy_tmpbin(&tmpdir, Some(&format!("bin2-{}", cmd1))).expect("Bin initialize");
 
         // test with bin1 -
         // validate member funcs
@@ -424,7 +558,7 @@ mod test {
         clean_tmpdir(unique_postfix);
 
         // create tmpdir
-        Some(env::temp_dir().join([TEST_TMP_DIR, unique_postfix].concat()))
+        Some(env::temp_dir().join(format!("{}{}", TEST_TMP_DIR, unique_postfix)))
             .and_then(|pb| fs::create_dir_all(&pb).ok().map(|_| pb))
     }
 
@@ -454,7 +588,7 @@ mod test {
     }
 
     fn clean_tmpdir(unique_postfix: &str) -> Option<()> {
-        Some(std::env::temp_dir().join([TEST_TMP_DIR, unique_postfix].concat()))
+        Some(std::env::temp_dir().join(format!("{}{}", TEST_TMP_DIR, unique_postfix)))
             .filter(|p| p.exists()) // only if p exists
             .map(|p| {
                 match p.is_dir() {
@@ -472,7 +606,7 @@ mod test {
     ) {
         for cur_elem in cmdname_and_shoulderr {
             unit_test_mod(tmpdir, wslcmd_list, cur_elem.0, cur_elem.1, TestKind::Link)
-                .expect(&["unit_test_link_wslcmd(\"", cur_elem.0, "\")"].concat())
+                .expect(&format!("unit_test_link_wslcmd(\"{}\")", cur_elem.0))
         }
     }
 
@@ -489,7 +623,7 @@ mod test {
                 cur_elem.1,
                 TestKind::Unlink,
             )
-            .expect(&["unit_test_unlink_wslcmd(\"", cur_elem.0, "\")"].concat())
+            .expect(&format!("unit_test_unlink_wslcmd(\"{}\")", cur_elem.0))
         }
     }
 
@@ -504,6 +638,15 @@ mod test {
         should_err: bool,
         testkind: TestKind,
     ) -> io::Result<()> {
+        crate::__wsllink_dbg!(
+            "unit_test_mod()",
+            &tmpdir,
+            &wslcmd_list,
+            &cmdname,
+            &should_err,
+            &testkind
+        );
+
         // get dir entries before call
         let dirent_before: HashSet<_> = HashSet::from_iter(
             tmpdir
@@ -512,11 +655,11 @@ mod test {
         );
 
         // run link_wslcmd
-        dbg!(match testkind {
+        let call_result = match testkind {
             TestKind::Link => wslcmd_list.link_wslcmd(&cmdname),
             TestKind::Unlink => wslcmd_list.unlink_wslcmd(&cmdname),
-        })
-        .ok(); // remove unused warning
+        };
+        crate::__wsllink_dbg!(&call_result);
 
         // get dir entries after call
         let dirent_after: HashSet<_> = HashSet::from_iter(
@@ -526,35 +669,81 @@ mod test {
         );
 
         // get diff of before <-> after
-        let dirent_diff = dirent_before
-            .symmetric_difference(&dirent_after)
-            .enumerate();
+        let mut dirent_diff = dirent_before.symmetric_difference(&dirent_after);
 
         // validate result if worked as expected
-        match {
-            // check if: Link -> len increased, Unlink -> len decreased
-            match testkind {
-                TestKind::Link => dirent_before.len() < dirent_after.len(),
-                TestKind::Unlink => dirent_before.len() > dirent_after.len(),
+        match should_err {
+            // if the call result should be Err
+            true => {
+                // check if Err
+                {
+                    call_result.is_err().then(|| ()).ok_or(Error::new(
+                        ErrorKind::Other,
+                        concat!(
+                            "Test validation failed: ",
+                            "Function call returned Ok while it should return Err"
+                        ),
+                    ))
+                }
+                // check if changes are as expected
+                .and_then(|_|
+                    // check if no difference before & after the func call
+                    (dirent_diff.by_ref().count() == 0)
+                        .then(|| ())
+                        .ok_or(Error::new(
+                            ErrorKind::Other,
+                            concat!(
+                                "Test validation failed: ",
+                                "Directory entries changed after failed job"
+                            ),
+                        )))
             }
-            // check if: diff count is 1, and different item is what the call expected
-            .bitand(dirent_diff.last().map_or(false, |(i, pb)| {
-                pb.wlpath_filename().map_or(false, |s| {
-                    {
-                        // check if diff count is 1 (last elem idx is 0)
-                        i == 0
+
+            // if the call result should be Ok
+            false => {
+                // check if Ok
+                {
+                    call_result.is_ok().then(|| ()).ok_or(Error::new(
+                        ErrorKind::Other,
+                        concat!(
+                            "Test validation failed: ",
+                            "Function call returned Err while it should return Ok"
+                        ),
+                    ))
+                }
+                // check if changes are as expected
+                .and_then(|_| {
+                    // check if # increased when Link, and decreased when Unlink
+                    match testkind {
+                        TestKind::Link => dirent_before.len() < dirent_after.len(),
+                        TestKind::Unlink => dirent_before.len() > dirent_after.len(),
                     }
+                    // check if different item is what the call expected
                     .bitand({
-                        // check if diff elem is same as expected
-                        s == wslcmd_with_ext!(cmdname)
+                        let diff_expected = [
+                            wslcmd_list
+                                .binpath
+                                .with_file_name(wslcmd_with_ext!(cmdname)),
+                            wslcmd_list
+                                .binpath
+                                .with_file_name(wslcmd_detached_bin!(wslcmd_with_ext!(cmdname))),
+                        ];
+
+                        HashSet::<_>::from_iter(&diff_expected)
+                            .symmetric_difference(&HashSet::from_iter(&mut dirent_diff))
+                            .count()
+                            == 0
                     })
+                    .then(|| ())
+                    .ok_or(Error::new(
+                        ErrorKind::Other,
+                        concat!(
+                            "Test validation failed: ",
+                            "Changed directory entries are not matched with expected changes"
+                        ),
+                    ))
                 })
-            }))
-            // if should_err is true, followed bool result will be inverted
-            .bitxor(should_err)
-        } {
-            true => Ok(()),
-            false => Err(Error::new(ErrorKind::Other, "Test validation failed")),
+            }
         }
     }
 
@@ -562,19 +751,21 @@ mod test {
         // convert cmdlist in wslcmd_list to basenamed result
         let cmdlist_basename: HashSet<_> =
             HashSet::from_iter(wslcmd_list.cmdlist().iter().map(|pb| pb.wlpath_basename()));
+        crate::__wsllink_dbg!(&cmdlist_basename);
 
         // convert expected list to basenamed result
         let expected_list_basename: HashSet<_> =
             HashSet::from_iter(expected_result.iter().map(|s| s.wlpath_basename()));
+        crate::__wsllink_dbg!(&expected_list_basename);
 
         // get diff of expected and real result
         let list_diff = cmdlist_basename.symmetric_difference(&expected_list_basename);
+        crate::__wsllink_dbg!(&list_diff);
 
         // validate result if worked as expected
-        match list_diff.count() == 0 {
-            true => Ok(()),
-            false => Err(Error::new(ErrorKind::Other, "Test validation failed")),
-        }
+        { list_diff.count() == 0 }
+            .then(|| ())
+            .ok_or(Error::new(ErrorKind::Other, "Test validation failed"))
     }
 
     fn new_dummy_file<T: WLPath>(fpath: &T) {

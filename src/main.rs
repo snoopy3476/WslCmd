@@ -1,5 +1,6 @@
 #![crate_type = "bin"]
 #![crate_name = "wsllink"]
+#![windows_subsystem = "console"]
 
 /// A module for executing WSL commands
 mod execution_mode;
@@ -21,7 +22,6 @@ fn main() {
     crate::__wsllink_dbg!("* Executed in debug mode! Debug msgs will be printed. *");
 
     // init
-    windows_freeconsole();
     let args: Vec<String> = std::env::args().collect();
 
     // call either mode, then get exitcode
@@ -68,18 +68,4 @@ fn is_exemode<T: WLStr>(cmd_args: &[T]) -> Option<bool> {
                 .wlpath_basename() // slice basename
         },
     )
-}
-
-/// Make console window hidden
-fn windows_freeconsole() {
-    use winapi::um::wincon::GetConsoleWindow;
-    use winapi::um::winuser::{ShowWindow, SW_HIDE};
-
-    let window = unsafe { GetConsoleWindow() };
-    // https://docs.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-showwindow
-    if window != std::ptr::null_mut() {
-        unsafe {
-            ShowWindow(window, SW_HIDE);
-        }
-    }
 }

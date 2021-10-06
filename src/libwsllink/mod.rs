@@ -9,6 +9,9 @@ pub use wslcmd::WslCmd;
 mod wslcmd_list;
 pub use wslcmd_list::WslCmdList;
 
+/// Delimiter of command name, which divides into bg proc mode, wsl command name, wsl user name
+const CMDNAME_DELIM: char = '!';
+
 // prevent compilation at environments other than Windows
 #[cfg(not(target_os = "windows"))]
 compile_error!("WslLink only works on Windows target!");

@@ -3,8 +3,8 @@ use derive_getters::Getters;
 use super::WLPath;
 use super::WLStr;
 
-/// Delimiter of command name, which divides into bg proc mode, wsl command name, wsl user name
-const CMDNAME_DELIM: char = '!';
+use super::CMDNAME_DELIM;
+
 /// Name of env arg, which prevent argument path conversion if set
 const ENVFLAG_NO_ARGCONV: &str = "WSLLINK_NO_ARGCONV";
 
@@ -340,6 +340,7 @@ impl WslCmdExitStatus {
 /// For module test
 mod test {
     use super::WslCmd;
+    use super::CMDNAME_DELIM;
 
     #[test]
     fn test_execute_true() {
@@ -362,7 +363,7 @@ mod test {
     #[test]
     fn test_execute_false_detached() {
         // create WslCmd & run test
-        WslCmd::new(&[[super::CMDNAME_DELIM.to_string(), "false".to_string()].concat()])
+        WslCmd::new(&[format!("{}false", CMDNAME_DELIM)])
             .expect("New WslCmd")
             .execute()
             .expect("Execute WslCmd - false (detached)");

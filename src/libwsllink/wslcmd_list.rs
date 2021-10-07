@@ -1,7 +1,6 @@
 use derive_getters::Getters;
 
 use super::{WLPath, WLStr};
-use itertools::Itertools;
 use std::collections::HashSet;
 use std::ffi::OsStr;
 use std::io;
@@ -395,7 +394,7 @@ use std::fmt;
 /// For display formatted print
 impl fmt::Display for WslCmdList {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        use ansi_term::Colour;
+        use itertools::Itertools;
 
         // build string to be displayed
         Some(
@@ -408,7 +407,6 @@ impl fmt::Display for WslCmdList {
                 .iter()
                 .filter_map(|pb| pb.wlpath_basename())
                 .sorted()
-                .map(|s| Colour::Green.paint(s)) ////////////////////////////////////////////
                 // join all wslcmd into one string
                 .join("'    '"), // wrap each cmdname with quotes
         )
@@ -638,14 +636,7 @@ mod test {
         should_err: bool,
         testkind: TestKind,
     ) -> io::Result<()> {
-        crate::__wsllink_dbg!(
-            "unit_test_mod()",
-            &tmpdir,
-            &wslcmd_list,
-            &cmdname,
-            &should_err,
-            &testkind
-        );
+        dbg!(&tmpdir, &wslcmd_list, &cmdname, &should_err, &testkind);
 
         // get dir entries before call
         let dirent_before: HashSet<_> = HashSet::from_iter(
@@ -659,7 +650,7 @@ mod test {
             TestKind::Link => wslcmd_list.link_wslcmd(&cmdname),
             TestKind::Unlink => wslcmd_list.unlink_wslcmd(&cmdname),
         };
-        crate::__wsllink_dbg!(&call_result);
+        dbg!(&call_result);
 
         // get dir entries after call
         let dirent_after: HashSet<_> = HashSet::from_iter(
@@ -751,16 +742,16 @@ mod test {
         // convert cmdlist in wslcmd_list to basenamed result
         let cmdlist_basename: HashSet<_> =
             HashSet::from_iter(wslcmd_list.cmdlist().iter().map(|pb| pb.wlpath_basename()));
-        crate::__wsllink_dbg!(&cmdlist_basename);
+        //dbg!(&cmdlist_basename);
 
         // convert expected list to basenamed result
         let expected_list_basename: HashSet<_> =
             HashSet::from_iter(expected_result.iter().map(|s| s.wlpath_basename()));
-        crate::__wsllink_dbg!(&expected_list_basename);
+        //dbg!(&expected_list_basename);
 
         // get diff of expected and real result
         let list_diff = cmdlist_basename.symmetric_difference(&expected_list_basename);
-        crate::__wsllink_dbg!(&list_diff);
+        //dbg!(&list_diff);
 
         // validate result if worked as expected
         { list_diff.count() == 0 }

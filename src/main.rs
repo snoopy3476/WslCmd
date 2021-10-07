@@ -2,6 +2,14 @@
 #![crate_name = "wsllink"]
 #![windows_subsystem = "console"]
 
+/// Exporting macros for color print
+#[macro_use]
+mod color_print;
+
+/// Exporting macros for debug print
+#[macro_use]
+mod dbg_print;
+
 /// A module for executing WSL commands
 mod execution_mode;
 /// A module for managing WslLink itself
@@ -12,14 +20,11 @@ mod libwsllink;
 use libwsllink::WLPath;
 use libwsllink::WLStr;
 
-/// Exporting macros for debug print
-mod dbg_print;
-
 /// Branch routine (Management/Execution mode),
 /// by checking if the binary is executed directly or through symlink
 fn main() {
     // debug msg
-    crate::__wsllink_dbg!("* Executed in debug mode! Debug msgs will be printed. *");
+    __wsllink_dbg!("* Executed in debug mode! Debug msgs will be printed. *");
 
     // init
     let args: Vec<String> = std::env::args().collect();
@@ -40,11 +45,11 @@ fn main() {
 
         // comparison failed for unknown reason
         _ => {
-            eprintln!("An unknown error occurred while checking args!");
+            cprintln!(Color::Red, "An unknown error occurred while checking args!");
             Err(1)
         }
     };
-    crate::__wsllink_dbg!("Child WSL proc exitcode", &exit_code); // debug msg
+    __wsllink_dbg!("Child WSL proc exitcode", &exit_code); // debug msg
 
     // exit with exitcode
     std::process::exit(exit_code.map_or_else(|code| code, |_| 0));

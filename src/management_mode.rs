@@ -25,7 +25,11 @@ pub fn management_mode(args: &[String]) -> Result<(), i32> {
                     wslcmd_list
                         .link_wslcmd(s_cmd)
                         // if s_cmd is error
-                        .map_err(|e| println!(" * Failed to link command '{}': {}", s_cmd, e))
+                        .map_err(|e| {
+                            cprintln!(Color::Red, " * Failed to link command '{}': {}", s_cmd, e);
+
+                            e // bypass Err
+                        })
                         .is_ok()
                 })
                 // check if there is failed job
@@ -36,11 +40,13 @@ pub fn management_mode(args: &[String]) -> Result<(), i32> {
                 .all(|is_ok| *is_ok)
             {
                 true => {
-                    println!(" - Linked all commands successfully");
+                    cprintln!(Color::Green, " - Linked command(s) successfully");
+
                     Ok(()) // return ok
                 }
                 false => {
-                    println!(" * Failed to link some commands while working!");
+                    cprintln!(Color::Red, " * Failed to link some commands while working!");
+
                     Err(-1) // return err
                 }
             }
@@ -55,7 +61,11 @@ pub fn management_mode(args: &[String]) -> Result<(), i32> {
                     wslcmd_list
                         .unlink_wslcmd(s_cmd)
                         // if s_cmd is error
-                        .map_err(|e| println!(" * Failed to unlink command '{}': {}", s_cmd, e))
+                        .map_err(|e| {
+                            cprintln!(Color::Red, " * Failed to unlink command '{}': {}", s_cmd, e);
+
+                            e // bypass Err
+                        })
                         .is_ok()
                 })
                 // check if there is failed job
@@ -66,11 +76,16 @@ pub fn management_mode(args: &[String]) -> Result<(), i32> {
                 .all(|is_ok| *is_ok)
             {
                 true => {
-                    println!(" - Unlinked all commands successfully");
+                    cprintln!(Color::Green, " - Unlinked command(s) successfully");
+
                     Ok(()) // return ok
                 }
                 false => {
-                    println!(" * Failed to unlink some commands while working!");
+                    cprintln!(
+                        Color::Red,
+                        " * Failed to unlink some commands while working!"
+                    );
+
                     Err(-1) // return err
                 }
             }
@@ -78,8 +93,57 @@ pub fn management_mode(args: &[String]) -> Result<(), i32> {
 
         // list
         (Some("li"), _) | (Some("list"), _) => {
-            print!(" [WSL command list - {}] \n{}\n", binname, wslcmd_list);
-            Ok(()) // return ok
+            use itertools::Itertools;
+            use std::io::Write;
+            use termcolor::{BufferWriter, Color, ColorChoice, ColorSpec, WriteColor};
+
+            // colored output writer
+            let buf_writer = BufferWriter::stdout(ColorChoice::Auto);
+            let mut buf = buf_writer.buffer();
+
+            // build and print wslcmd list string
+            {
+                // write header
+                write!(&mut buf, " - WSL command list ({}) :  ", binname)
+            }
+            .and_then(|_| {
+                {
+                    // get iter of all sorted cmdlist
+                    wslcmd_list.cmdlist().iter().sorted()
+                }
+                // do for all list
+                .all(|pb| {
+                    {
+                        // get basename of current cmdlist
+                        pb.wlpath_basename().ok_or(())
+                    }
+                    .and_then(|s| {
+                        // write list to buf
+                        write!(&mut buf, "'")
+                            .and_then(|_| {
+                                buf.set_color(ColorSpec::new().set_fg(Some(Color::Green)))
+                            })
+                            .and_then(|_| write!(&mut buf, "{}", s))
+                            .and_then(|_| buf.set_color(ColorSpec::new().set_reset(true)))
+                            .and_then(|_| write!(&mut buf, "'  "))
+                            .map_err(|_| ())
+                    })
+                    .is_ok()
+                })
+                .then(|| ())
+                .ok_or(std::io::Error::new(
+                    std::io::ErrorKind::Other,
+                    "Color print error",
+                ))
+            })
+            // end with newline
+            .and_then(|_| writeln!(&mut buf))
+            // reset color at the end
+            .and_then(|_| buf.set_color(ColorSpec::new().set_reset(true)))
+            // print built buf to terminal
+            .and_then(|_| buf_writer.print(&buf))
+            .and_then(|_| Ok(buf.clear()))
+            .map_err(|_| -1)
         }
 
         // default

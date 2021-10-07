@@ -19,7 +19,7 @@
 macro_rules! __wsllink_dbg {
 
     // for label-only
-    //   crate::__wsllink_dbg!("label");
+    //   __wsllink_dbg!("label");
     ($label:literal) => {
 
             // for debug mode
@@ -39,7 +39,7 @@ macro_rules! __wsllink_dbg {
     };
 
     // for label and vars
-    //   crate::__wsllink_dbg!("label", var1, var2, ...);
+    //   __wsllink_dbg!("label", var1, var2, ...);
     ($label:literal, $($args:expr), +) => {
         {
 
@@ -64,7 +64,7 @@ macro_rules! __wsllink_dbg {
 
 
     // for vars only
-    //   crate::__wsllink_dbg!(var1, var2, ...);
+    //   __wsllink_dbg!(var1, var2, ...);
     ($($args:expr), +) => {
         {
 
@@ -132,7 +132,6 @@ macro_rules! __wsllink_dbg_body {
             let ret = dbg!($($args),+);
             // reset color
             stderr.reset().ok();
-            //eprintln!();
             ret
         }
     };

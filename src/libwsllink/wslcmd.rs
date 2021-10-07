@@ -339,8 +339,7 @@ impl WslCmdExitStatus {
 #[cfg(test)]
 /// For module test
 mod test {
-    use super::WslCmd;
-    use super::CMDNAME_DELIM;
+    use super::{WslCmd, WslCmdExitStatus, CMDNAME_DELIM};
 
     #[test]
     fn test_execute_true() {
@@ -375,6 +374,19 @@ mod test {
         WslCmd::new(&["command", "-v", "wslpath"])
             .expect("New WslCmd")
             .execute_with_stdin(Some("")) // no child output while testing
+            // only for debug: bypass exit_status, with printing outputs
+            .map_or_else(
+                // if Err
+                |e| {
+                    print_stdout_stderr(&e);
+                    Err(e)
+                },
+                // if Ok
+                |e| {
+                    print_stdout_stderr(&e);
+                    Ok(e)
+                },
+            )
             .expect("Execute WslCmd - wslpath abspath");
     }
 
@@ -386,9 +398,32 @@ mod test {
         WslCmd::new(&["cat"])
             .expect("New WslCmd")
             .execute_with_stdin(Some(INPUT)) // set input, and no child output
+            // only for debug: bypass exit_status, with printing outputs
+            .map_or_else(
+                // if Err
+                |e| {
+                    print_stdout_stderr(&e);
+                    Err(e)
+                },
+                // if Ok
+                |e| {
+                    print_stdout_stderr(&e);
+                    Ok(e)
+                },
+            )
             .expect("Execute WslCmd - cat")
             .stdout
             .filter(|s| String::from_utf8_lossy(&s) == INPUT) // check stdout == stdin
             .expect("Validate WslCmd - cat");
+    }
+
+    // print
+    fn print_stdout_stderr(e: &WslCmdExitStatus) {
+        e.stdout
+            .as_ref()
+            .map(|stdout| dbg!(String::from_utf8_lossy(stdout)));
+        e.stderr
+            .as_ref()
+            .map(|stderr| dbg!(String::from_utf8_lossy(stderr)));
     }
 }

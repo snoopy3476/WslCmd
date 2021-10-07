@@ -229,6 +229,18 @@ impl WslCmdList {
                 .then(|| pb_cmd)
                 .ok_or(Error::new(ErrorKind::InvalidInput, "Invalid cmdname"))
         })
+        // Ok if given cmd file exists
+        .and_then(|pb_cmd| {
+            // bool expression
+            pb_cmd
+                .exists()
+                // bool -> Result
+                .then(|| pb_cmd)
+                .ok_or(Error::new(
+                    ErrorKind::AlreadyExists,
+                    "WslCmd file does not exist",
+                ))
+        })
         // Ok if given cmd is wslcmd file
         .and_then(|pb_cmd| {
             // bool expression

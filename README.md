@@ -56,6 +56,7 @@ C:\>
 
 
 ## Build & Install
+You can select one of below: Download pre-compiled binary, compile on Windows, compile on WSL
 - Download a pre-compiled executable binary from [Releases](https://github.com/snoopy3476/WslLink/releases).
   - Make folder for WslLink
   - Put the downloaded binary into the created folder
@@ -70,17 +71,18 @@ C:\>
     ```
     :: Run following commands on Windows CMD
     
-    :: Set a path of Windows to install: Replace (USER_NAME) appropriately
+    :: Set a path of Windows to install:
+    ::   Replace (USER_NAME) appropriately
     set WSLLINK_ROOT="C:\Users\(USER_NAME)\WslLink"
-
-    :: Install from the repository, then append installed path to Windows PATH env var
+    
+    :: Install from the repository,
+    :: then append installed path to Windows PATH env var
     cargo install --git=https://github.com/snoopy3476/WslLink.git ^
                   --root="%WSLLINK_ROOT%" ^
-    && setx PATH "%PATH%;%WSLLINK_ROOT%\bin"
+                  && setx PATH "%PATH%;%WSLLINK_ROOT%\bin"
     ```
   - Re-open CMD to apply modified PATH
-    - If you are using Windows Terminal, it may not be enough to open a new CMD tab.
-      You need to close and re-open Windows Terminal itself.
+    - If you are using Windows Terminal, you need to close and re-open Windows Terminal itself.
 - Build on WSL (need to install mingw-64)
   - [Install Rust for WSL](https://www.rust-lang.org/tools/install)
   - Install prerequisites on WSL
@@ -95,18 +97,21 @@ C:\>
       ```
   - Build on WSL & install to Windows with Cargo
     ```
-    # Set a path of Windows to install: Replace (USER_NAME) appropriately
+    # Set a path of Windows to install:
+    #   Replace (USER_NAME) appropriately
     WSLLINK_ROOT="C:\\Users\\(USER_NAME)\\WslLink"
-
-    # Install from the repository, then append installed path to Windows PATH env var
+    
+    # Install from the repository,
+    # then append installed path to Windows PATH env var
     cargo install --git=https://github.com/snoopy3476/WslLink.git \
                   --target=x86_64-pc-windows-gnu \
                   --root="$(wslpath $WSLLINK_ROOT)" \
-    && printf 'setx PATH "%%PATH%%;%s\\bin"\n' "$WSLLINK_ROOT" | cmd.exe; echo
+                  && printf 'setx PATH "%%PATH%%;%s\\bin"\n' \
+                            "$WSLLINK_ROOT" \
+                  | cmd.exe; echo
     ```
   - Re-open CMD to apply modified PATH
-    - If you are using Windows Terminal, it may not be enough to open a new CMD tab.
-      You need to close and re-open Windows Terminal itself.
+    - If you are using Windows Terminal, you need to close and re-open Windows Terminal itself.
 
 
 ## Uninstall
@@ -124,16 +129,26 @@ C:\>
 ## Usage
 ### Basic usage
 - Command management
-  - Link new commands to WSL:
-    - `wsllink new <command-name-1> <command-name-2> ...`
-    - `wsllink add <command-name-1> <command-name-2> ...`
-    - `wsllink ln <command-name-1> <command-name-2> ...`
-  - Unlink existing commands from WSL:
-    - `wsllink del <command-name-1> <command-name-2> ...`
-    - `wsllink rm <command-name-1> <command-name-2> ...`
+  - Link new commands:
+    ```
+    wsllink add <command-name-1> (<command-name-2>) ...
+            a          "                 "          ...
+            new        "                 "          ...
+            n          "                 "          ...
+    ```
+  - Unlink existing commands:
+    ```
+    wsllink del <command-name-1> (<command-name-2>) ...
+            d          "                 "          ...
+            rm         "                 "          ...
+            r          "                 "          ...
+    ```
   - List linked commands:
-    - `wsllink li`
-    - `wsllink list`
+    ```
+    wsllink list
+            ls
+            l
+    ```
 - Command execution
   - `<command-name> <command-arg1> <command-arg2> ...`
   - *Ex)*

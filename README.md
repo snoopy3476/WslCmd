@@ -9,7 +9,7 @@
 ### What does this executable do
 - Create and manage symlinks to commands of WSL (inside the directory where the executable binary exists)
 - When running WSL commands on Windows shell, help converting Windows path arguments to WSL path if exists
-  - This auto-conversion Works only if an argument itself is a Windows path (Arguments starting with `[a-zA-Z]:[\/]`, after unquoted)
+  - This auto-conversion works only if an argument itself is a Windows path (Arguments starting with `[a-zA-Z]:[\/]`, after unquoted)
     - *Ex)*
       - *Input*: `printf "C:\tmp\example-file.txt"`
       - *Output*: `/mnt/c/tmp/example-file.txt`
@@ -17,11 +17,12 @@
     - *Ex)*
       - *Input*: `printf "Test=C:\tmp\example-file.txt"`
       - *Output*: `Test=C:/tmp/example-file.txt`
+  - The conversion is disabled when the environment variable `WSLLINK_NO_ARGCONV` is set
 
 
 ### Brief usage examples
 
-- Use commands of WSL directly on Windows command prompt
+- Use WSL commands directly on Windows command prompt
 ```
 C:\>wsllink list
  - WSL command list (wsllink) :  
@@ -56,7 +57,9 @@ C:\>
 
 
 ## Build & Install
-You can select one of below: Download pre-compiled binary, compile on Windows, compile on WSL
+
+You can select one of below to install:
+
 - Download a pre-compiled executable binary from [Releases](https://github.com/snoopy3476/WslLink/releases).
   - Make folder for WslLink
   - Put the downloaded binary into the created folder
@@ -65,6 +68,7 @@ You can select one of below: Download pre-compiled binary, compile on Windows, c
     set WSLLINK_ROOT="C:\Users\(USER_NAME)\WslLink"
     setx PATH "%PATH%;%WSLLINK_ROOT%"
     ```
+    
 - Build on Windows (may need to install Microsoft Visual Studio)
   - [Install Rust for Windows](https://www.rust-lang.org/tools/install)
   - Build and install with Cargo on Windows CMD
@@ -83,6 +87,7 @@ You can select one of below: Download pre-compiled binary, compile on Windows, c
     ```
   - Re-open CMD to apply modified PATH
     - If you are using Windows Terminal, you need to close and re-open Windows Terminal itself.
+    
 - Build on WSL (need to install mingw-64)
   - [Install Rust for WSL](https://www.rust-lang.org/tools/install)
   - Install prerequisites on WSL
@@ -158,8 +163,8 @@ You can select one of below: Download pre-compiled binary, compile on Windows, c
 
 
 ### Detached process mode (GUI program mode)
-- **Note that 'X server for Windows' (WSLg, VcXsrv, etc.) is required for running GUI programs!**
-- Running a command starting with a '!' will run the command as a detached, backgroud process
+- **Note that 'Linux GUI server for Windows' (WSLg, VcXsrv, etc.) is required for running GUI programs!**
+- Running a command starting with a `!` will run the command as a detached, backgroud process
   - Detached background process here does not tied to the running shell, so you can close the shell after running it
   - This is useful when you want to execute GUI program of WSL
   - *Ex)*
@@ -186,14 +191,19 @@ You can select one of below: Download pre-compiled binary, compile on Windows, c
       - After that, the WSL program can open a file directly if you double-click the file at Windows file explorer
         - When a file is executed at Windows file explorer, the path of the file will be passed through cmdline arguments
 
-<!--
+
 ### Notes for escaping string
 - This script converts characters automatically as following:
-  - `\` -> `/` (for passing relative path to WSL binaries)
-    - To write a literal `\`, you must escape it with another leading `\`: so it will be `\\`
+  - Rules
+    - (Single `\`) -> `/`
+      - This is for passing relative path to WSL binaries
+    - (Consecutive `\`s) -> (Remaining `\`(s) without the first `\` character)
+      - *Ex)*
+        - `\\` -> `\`
+        - `\\\` -> `\\`
+        - ...
   - *Ex)*
-    - *Input*: `printf \example\\\\strin\\g:\\ \\'[%%s]\\' "ARG-INPUT"`
+    - *Input*: `printf \example\\\strin\\g:\\ \\'[%s]\\' "ARG-INPUT"`
     - *(After conversion by the script)*: `printf /example\\strin\g:\ \'[%s]\' "ARG-INPUT"` (<- actual input on WSL shell)
     - *Output*: `/example\string: '[ARG-INPUT]'`
 - Of course, special characters of cmd/powershell themselves should be also escaped
--->

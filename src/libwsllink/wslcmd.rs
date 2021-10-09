@@ -236,8 +236,9 @@ impl WslCmd {
     // arg -> wsl arg (mainly path conversion)
     fn convert_arg_to_wsl_arg<T: WLStr>(arg: &T) -> String {
         arg.wlstr_invoke(Self::arg_convert_and_unescape_backslashes)
-            .wlstr_invoke(Self::arg_wrap_with_wslpath_if_absolute)
-            .unwrap_or(arg.wlstr_as_ref().unwrap_or_default().to_owned())
+            // if arg_wrap_with_.. returns None, use input as output
+            .wlstr_invoke(|s| Self::arg_wslpath_wrap_if_abs(s).or(s.wlstr_clone_to_string()))
+            .unwrap_or_default()
     }
 
     // replace single '\' (not consecutive '\'s) to '/',
@@ -257,7 +258,7 @@ impl WslCmd {
     // if an argument an absolute path, just converting '\' -> '/' is not enough.
     // the arg starting with drive letter pattern should be converted into wsl path manually
     // using wslpath inside wsl.
-    fn arg_wrap_with_wslpath_if_absolute<T: WLStr>(arg: &T) -> Option<String> {
+    fn arg_wslpath_wrap_if_abs<T: WLStr>(arg: &T) -> Option<String> {
         arg.wlstr_as_ref()
             .filter(|s| s.wlpath_is_absolute())
             // wrap with wslpath substitution

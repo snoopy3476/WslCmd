@@ -125,39 +125,61 @@ pub fn management_mode(args: &[String]) -> Result<(), i32> {
 
                 // build and print wslcmd list string
                 {
-                    // write header
-                    write!(&mut buf, " - WSL command list ({}) :  ", binname)
+                    // get iter of all sorted cmdlist
+                    Some(wslcmd_list.cmdlist().iter().sorted())
                 }
-                .and_then(|_| {
-                    {
-                        // get iter of all sorted cmdlist
-                        wslcmd_list.cmdlist().iter().sorted()
-                    }
-                    // do for all list
-                    .all(|pb| {
-                        {
-                            // get basename of current cmdlist
-                            pb.wlpath_basename().ok_or(())
-                        }
-                        .and_then(|s| {
-                            // write list to buf
-                            write!(&mut buf, "'")
-                                .and_then(|_| {
-                                    buf.set_color(ColorSpec::new().set_fg(Some(Color::Green)))
-                                })
-                                .and_then(|_| write!(&mut buf, "{}", s))
-                                .and_then(|_| buf.set_color(ColorSpec::new().set_reset(true)))
-                                .and_then(|_| write!(&mut buf, "'  "))
-                                .map_err(|_| ())
+                .filter(|i| i.clone().count() > 0)
+                .map_or_else(
+                    // if no entry
+                    || {
+                        cprint!(Color::Yellow, "(No linked WSL command)");
+                        true
+                    },
+                    // if WSL commands exist
+                    |mut i| {
+                        // do for all list
+                        i.all(|pb| {
+                            {
+                                // get basename of current cmdlist
+                                pb.wlpath_basename().ok_or(())
+                            }
+                            .and_then(|s| {
+                                // if current string contains ws, wrap with '
+                                {
+                                    s.contains(char::is_whitespace)
+                                        .then(|| ("'", "'")) // wrapper front/back
+                                        .or_else(|| Some(("", ""))) // no wrapper
+                                }
+                                // print using 's' and 'wrap_*' data
+                                .map_or(
+                                    Ok(()),
+                                    |(wrap_front, wrap_back)| {
+                                        // write list to buf
+                                        write!(&mut buf, "{}", wrap_front)
+                                            .and_then(|_| {
+                                                buf.set_color(
+                                                    ColorSpec::new().set_fg(Some(Color::Green)),
+                                                )
+                                            })
+                                            .and_then(|_| write!(&mut buf, "{}", s))
+                                            .and_then(|_| {
+                                                buf.set_color(ColorSpec::new().set_reset(true))
+                                            })
+                                            .and_then(|_| write!(&mut buf, "{}", wrap_back))
+                                            .and_then(|_| write!(&mut buf, "\t"))
+                                            .map_err(|_| ())
+                                    },
+                                )
+                            })
+                            .is_ok()
                         })
-                        .is_ok()
-                    })
-                    .then(|| ())
-                    .ok_or(std::io::Error::new(
-                        std::io::ErrorKind::Other,
-                        "Color print error",
-                    ))
-                })
+                    },
+                )
+                .then(|| ())
+                .ok_or(std::io::Error::new(
+                    std::io::ErrorKind::Other,
+                    "Color print error",
+                ))
                 // end with newline
                 .and_then(|_| writeln!(&mut buf))
                 // reset color at the end

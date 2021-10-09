@@ -144,8 +144,29 @@ impl WslCmd {
             })
             // append arg: start wsl shell commands
             .arg("--")
-            // append args: load env vars
-            .args(&[".", "/etc/profile;", ".", "$HOME/.profile;"])
+            // append args: load env vars - /etc/profile, $HOME/.profile
+            .args(&[
+                "if",
+                "[",
+                "-f",
+                "/etc/profile",
+                "];",
+                "then",
+                ".",
+                "/etc/profile;",
+                "fi;",
+            ])
+            .args(&[
+                "if",
+                "[",
+                "-f",
+                "$HOME/.profile",
+                "];",
+                "then",
+                ".",
+                "$HOME/.profile;",
+                "fi;",
+            ])
             // append arg: append wsl command
             .arg(&self.command)
             // append args: wsl command args

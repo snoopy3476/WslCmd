@@ -145,28 +145,10 @@ impl WslCmd {
             // append arg: start wsl shell commands
             .arg("--")
             // append args: load env vars - /etc/profile, $HOME/.profile
-            .args(&[
-                "if",
-                "[",
-                "-f",
+            .args(Self::buildcmd_load_envfile_if_exists(&[
                 "/etc/profile",
-                "];",
-                "then",
-                ".",
-                "/etc/profile;",
-                "fi;",
-            ])
-            .args(&[
-                "if",
-                "[",
-                "-f",
                 "$HOME/.profile",
-                "];",
-                "then",
-                ".",
-                "$HOME/.profile;",
-                "fi;",
-            ])
+            ]))
             // append arg: append wsl command
             .arg(&self.command)
             // append args: wsl command args
@@ -284,6 +266,15 @@ impl WslCmd {
             .filter(|s| s.wlpath_is_absolute())
             // wrap with wslpath substitution
             .map(|s| format!("$(wslpath '{}')", s))
+    }
+
+    // get env load string from file path
+    fn buildcmd_load_envfile_if_exists<'a>(envfile_list: &'a [&str]) -> Vec<&'a str> {
+        envfile_list
+            .iter()
+            .map(|s| ["if", "test", "-r", s, ";", "then", ".", s, ";", "fi;"].to_vec())
+            .collect::<Vec<Vec<&str>>>() // vec of vec
+            .concat() // flatten to vec
     }
 }
 

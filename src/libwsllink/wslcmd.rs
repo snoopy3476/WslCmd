@@ -25,6 +25,10 @@ pub struct WslCmd {
     #[getter(rename = "get_dist")]
     distribution: Option<String>,
 
+    /// WSL envfile list
+    #[getter(rename = "get_envfiles")]
+    envfiles: Vec<String>,
+
     /// Detached process mode
     ///
     /// Execute as a detached background process. Useful for GUI binaries.
@@ -61,9 +65,10 @@ impl WslCmd {
             Self {
                 command,
                 is_detached_proc,
-                args: [].to_vec(),  // default
-                username: None,     // default
-                distribution: None, // default
+                args: [].to_vec(),     // default
+                username: None,        // default
+                distribution: None,    // default
+                envfiles: [].to_vec(), // default
             }
         })
     }
@@ -148,6 +153,35 @@ impl WslCmd {
     }
 
     ///
+    /// Set environment file to source for [`WslCmd`]
+    ///
+    /// # Arguments
+    ///
+    /// * `file_list` - File list to load before WSL execute
+    ///
+    /// # Return
+    ///
+    /// Self [`WslCmd`] after setting envfiles
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// let wslcmd: WslCmd = WslCmd::new("command")
+    ///            .expect("New WslCmd")
+    ///            .envfiles(&["path/to/file1", "path/to/file2"]);
+    /// ```
+    ///
+    #[allow(dead_code)]
+    pub fn envfiles<T: WLStr>(mut self, file_list: &[T]) -> Self {
+        self.envfiles = file_list
+            .iter()
+            .map(|t| t.wlstr_clone_to_string().unwrap_or_default())
+            .collect();
+
+        self
+    }
+
+    ///
     /// Execute [`WslCmd`].
     ///
     /// # Return
@@ -219,11 +253,14 @@ impl WslCmd {
             })
             // append arg: start wsl shell commands
             .arg("--")
-            // append args: load env vars - /etc/profile, $HOME/.profile
-            .args(Self::buildcmd_load_envfile_if_exists(&[
-                "/etc/profile",
-                "$HOME/.profile",
-            ]))
+            // append args: load env vars
+            .args(Self::buildcmd_load_envfile_if_exists(
+                // load '/etc/profile', '$HOME/.profile', and files in 'self.envfiles'
+                ["/etc/profile", "$HOME/.profile"]
+                    .iter()
+                    .map(|s| *s)
+                    .chain(self.envfiles.iter().map(|s| s.as_str())),
+            ))
             // append arg: append wsl command
             .arg(&self.command)
             // append args: wsl command args
@@ -281,8 +318,8 @@ impl WslCmd {
             })
     }
 
-    // parse command name, to get (detached mode, command, user)
-    // returns None if error (failed to get basename, command name is empty)
+    // parse command name, to get (detached mode, command)
+    // returns None if error (failed to get basename, command name is empty, ...)
     fn parse_cmd<T: WLPath>(binname: &T) -> Option<(String, bool)> {
         binname
             // get basename
@@ -311,7 +348,7 @@ impl WslCmd {
             // no conversion
             false => args
                 .iter()
-                .map(|t| t.wlstr_as_ref().unwrap_or_default().to_owned())
+                .map(|t| t.wlstr_clone_to_string().unwrap_or_default())
                 .collect(),
         }
     }
@@ -344,17 +381,18 @@ impl WslCmd {
     fn arg_wslpath_wrap_if_abs<T: WLStr>(arg: &T) -> Option<String> {
         arg.wlstr_as_ref()
             .filter(|s| s.wlpath_is_absolute())
-            // wrap with wslpath substitution
-            .map(|s| format!("$(wslpath '{}')", s))
+            // escape ' inside quote-str, then wrap with wslpath substitution
+            .map(|s| format!("$(wslpath '{}')", s.replace("'", r"'\''")))
     }
 
     // get env load string from file path
-    fn buildcmd_load_envfile_if_exists<'a>(envfile_list: &'a [&str]) -> Vec<&'a str> {
-        envfile_list
-            .iter()
+    fn buildcmd_load_envfile_if_exists<'a, I: Iterator<Item = &'a str>>(
+        envfile_iter: I,
+    ) -> Vec<&'a str> {
+        envfile_iter
             .map(|s| ["if", "test", "-r", s, ";", "then", ".", s, ";", "fi;"].to_vec())
             .collect::<Vec<Vec<&str>>>()
-            .concat()
+            .concat() // flatten
     }
 }
 

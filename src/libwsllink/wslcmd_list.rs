@@ -30,15 +30,19 @@ macro_rules! wslcmd_detached_bin {
 /// Read dir and load all wslcmds, and manage the list
 pub struct WslCmdList {
     /// Path of target bin
+    #[getter(rename = "get_binpath")]
     binpath: PathBuf,
 
     /// Path of original bin, after following all symlinks
+    #[getter(rename = "get_orig_binpath")]
     orig_binpath: PathBuf,
 
     /// Latest WslCmd list
+    #[getter(rename = "get_cmdlist")]
     cmdlist: HashSet<String>,
 
     /// Time of WslCmd list data
+    #[getter(rename = "get_cmdlist_time")]
     cmdlist_time: Option<SystemTime>,
 }
 

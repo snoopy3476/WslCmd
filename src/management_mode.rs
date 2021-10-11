@@ -126,7 +126,7 @@ pub fn management_mode(args: &[String]) -> Result<(), i32> {
                 // build and print wslcmd list string
                 {
                     // get iter of all sorted cmdlist
-                    Some(wslcmd_list.cmdlist().iter().sorted())
+                    Some(wslcmd_list.get_cmdlist().iter().sorted())
                 }
                 .filter(|i| i.clone().count() > 0)
                 .map_or_else(

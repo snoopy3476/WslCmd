@@ -162,17 +162,25 @@ Then, append the folder path (where the executable exists) to Windows 'PATH' env
 
 
 ### Detached process mode (GUI program mode)
-- **Note that 'Linux GUI server for Windows' (WSLg, VcXsrv, etc.) is required for running GUI programs!**
+
+- Note that 'Linux GUI server for Windows' (WSLg, VcXsrv, etc.) is required for running GUI programs!
 - When creating a command, additional command with prepended `.` is also created internally
+
 - Running a command starting with an `.` will run the command as a detached, backgroud process
   - Detached background process here does not tied to the running shell, so you can close the shell after running it
   - This is useful when you want to execute GUI program of WSL
   - *Ex)*
     - `wsllink new emacs`        *(Create new links to WSL command 'emacs')*
     - `.emacs bin\test.txt`      *(run 'emacs' at background, and detach)*
-- Make a shortcut link (.lnk) to the command file `(command-name).exe` (**NOT a `.(command-name).exe` file!**) or run it directly, to run GUI programs with mouse click
-  - *Ex)*
-    - *Add WSL GUI programs to Windows start menu as Windows program*
+
+- Usage examples
+
+  - **Open specific file-extensions with WSL GUI programs by default**
+    - Set a WSL GUI program symlink (`.(command-name).exe`, executable with a leading dot) as a default program ('Open with...') for some file-extensions
+      - After doing this, the WSL program can open a file with those extensions directly, if you double-click the file icon at Windows file explorer
+
+  - **Add WSL GUI programs to Windows start menu as Windows program**
+    - Make a shortcut link (.lnk) to the command file `(command-name).exe` (**NOT `.(command-name).exe` file! No leading dot here**) or run it directly, to run GUI programs with mouse click
       1. Go to the folder where the WslLink script exists
       2. Create a shortcut to `(command-name).exe` file manually with mouse right click
           - Change the shortcut file name which is displayed as program name
@@ -187,9 +195,6 @@ Then, append the folder path (where the executable exists) to Windows 'PATH' env
           - Press `[Windows key]` key to open the start menu
           - Enter the name of the link file you made when the start menu is appeared
           - Mouse right click at the searched program, then pin to start menu
-    - *Set a WSL GUI program symlink (`(command-name).exe`) as a default program ('Open with...') for some file-extensions*
-      - After that, the WSL program can open a file directly if you double-click the file at Windows file explorer
-        - When a file is executed at Windows file explorer, the path of the file will be passed through cmdline arguments
 
 
 ### Command name format
@@ -258,4 +263,7 @@ WslLink tries to convert Windows path arguments to WSL-understandable path. This
 
 
 ### Environments
-Environment files `/etc/profile` and `$HOME/.profile` are loaded before execution if exists.
+Following environment files are loaded before execution if exists:
+- `/etc/profile`
+- `$HOME/.profile`
+- `(wsllink-exe-dir)\profile` (File `profile` inside the wsllink exe folder)

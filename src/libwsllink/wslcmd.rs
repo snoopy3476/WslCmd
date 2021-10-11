@@ -3,30 +3,32 @@ use derive_getters::Getters;
 use super::WLPath;
 use super::WLStr;
 
-use super::CMDNAME_DELIM;
-
-/// Name of env arg, which prevent argument path conversion if set
-const ENVFLAG_NO_ARGCONV: &str = "WSLLINK_NO_ARGCONV";
+use super::DETACHED_PROC_PREFIX;
 
 #[derive(Getters, Debug)]
 /// Store input WSL cmdline info including arguments,
 /// which can be converted to execute WSL command
 pub struct WslCmd {
     /// WSL command name
+    #[getter(rename = "get_command")]
     command: String,
 
     /// WSL command arguments
+    #[getter(rename = "get_args")]
     args: Vec<String>,
 
     /// WSL username to execute command
+    #[getter(rename = "get_user")]
     username: Option<String>,
 
     /// WSL distribution
+    #[getter(rename = "get_dist")]
     distribution: Option<String>,
 
     /// Detached process mode
     ///
     /// Execute as a detached background process. Useful for GUI binaries.
+    #[getter(rename = "get_is_detached")]
     is_detached_proc: bool,
 }
 
@@ -36,40 +38,113 @@ impl WslCmd {
     ///
     /// # Arguments
     ///
-    /// * `cmd_args` - A full command-line arguments, including a command name (cmd_args\[0\])
+    /// * `cmdname` - Name of command
     ///
     /// # Return
     ///
-    /// A newly created [`Some`]\([`WslCmd`]\) with given cmdline args if succeeded.
+    /// A newly created [`Some`]\([`WslCmd`]\) with given command name if succeeded.
     /// [`None`] if failed to create an instance.
     ///
     /// # Examples
     ///
     /// ```
-    /// let args: Vec<String> = args().collect();
-    /// let wslcmd: Option<WslCmd> = WslCmd::new(&args);
+    /// let wslcmd: Option<WslCmd> = WslCmd::new("command");
     /// ```
     ///
     #[allow(dead_code)]
-    pub fn new<T: WLStr>(cmd_args: &[T]) -> Option<Self> {
-        // split given args into (binname, args)
-        cmd_args.split_first().and_then(|(binname, args)| {
-            // get vars from binname with parsing
-            let (is_detached_proc, command, username, distribution) = Self::parse_cmd(binname)?;
-            // parse & convert args to wsl args
-            let args = Self::parse_args(args);
+    pub fn new<T: WLStr>(cmdname: T) -> Option<Self> {
+        // parse cmd, return None if failed at this point
+        let (command, is_detached_proc) = Self::parse_cmd(&cmdname)?;
 
-            // return struct instance
-            Some({
-                Self {
-                    is_detached_proc,
-                    command,
-                    username,
-                    distribution,
-                    args,
-                }
-            })
+        // return struct instance
+        Some({
+            Self {
+                command,
+                is_detached_proc,
+                args: [].to_vec(),  // default
+                username: None,     // default
+                distribution: None, // default
+            }
         })
+    }
+
+    ///
+    /// Set arguments for [`WslCmd`]
+    ///
+    /// # Arguments
+    ///
+    /// * `args`             - Arguments list
+    /// * `convert_pathargs` - If set, convert Windows path arguments to WSL path
+    ///
+    /// # Return
+    ///
+    /// Self [`WslCmd`] after setting arguments
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// let wslcmd: WslCmd = WslCmd::new("ls")
+    ///            .expect("New WslCmd")
+    ///            .args(&["C:/Users", "D:/", "relpath-dir"], true);
+    /// ```
+    ///
+    #[allow(dead_code)]
+    pub fn args<T: WLStr>(mut self, args: &[T], convert_pathargs: bool) -> Self {
+        self.args = Self::parse_args(args, convert_pathargs);
+
+        self
+    }
+
+    ///
+    /// Set WSL user to execute [`WslCmd`]
+    ///
+    /// # Arguments
+    ///
+    /// * `username` - User name of WSL for the process
+    ///
+    /// # Return
+    ///
+    /// Self [`WslCmd`] after setting username
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// let wslcmd: WslCmd = WslCmd::new("command")
+    ///            .expect("New WslCmd")
+    ///            .user("ubuntuuser");
+    /// ```
+    ///
+    #[allow(dead_code)]
+    pub fn user<T: WLStr>(mut self, username: T) -> Self {
+        self.username = username.wlstr_clone_to_string();
+
+        self
+    }
+
+    ///
+    /// Set WSL distribution to execute [`WslCmd`]
+    ///
+    /// # Arguments
+    ///
+    /// * `distribution` - WSL Distribution name for the process
+    ///
+    /// # Return
+    ///
+    /// Self [`WslCmd`] after setting distribution
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// let wslcmd: WslCmd = WslCmd::new("command")
+    ///            .expect("New WslCmd")
+    ///            .dist("ubuntu");
+    /// ```
+    ///
+    #[allow(dead_code)]
+    pub fn dist<T: WLStr>(mut self, distribution: T) -> Self {
+        self.distribution = distribution.wlstr_clone_to_string();
+
+        self
     }
 
     ///
@@ -208,27 +283,32 @@ impl WslCmd {
 
     // parse command name, to get (detached mode, command, user)
     // returns None if error (failed to get basename, command name is empty)
-    fn parse_cmd<T: WLPath>(binname: &T) -> Option<(bool, String, Option<String>, Option<String>)> {
-        let mut it = {
-            binname
-                .wlpath_basename()?
-                .split(CMDNAME_DELIM) // iterator by splitted binname
-                .peekable()
-        };
-        Some((
-            it.next_if(|str| str.is_empty()).is_some(), // detached mode
-            it.next().map(String::from).filter(|s| !s.is_empty())?, // command, must not empty
-            it.next().map(String::from).filter(|s| !s.is_empty()), // user
-            it.next().map(String::from).filter(|s| !s.is_empty()), // distribution
-        ))
+    fn parse_cmd<T: WLPath>(binname: &T) -> Option<(String, bool)> {
+        binname
+            // get basename
+            .wlpath_basename()
+            // basename to (cmd, detached)
+            .and_then(
+                // test if starts with DETACHED_PROC_PREFIX
+                |basename| match basename.chars().next()? == DETACHED_PROC_PREFIX {
+                    // detached proc: remove prefix from the basename -> cmd
+                    true => basename.get(1..).map(|cmd| (cmd, true)),
+                    // normal proc
+                    false => Some((basename, false)),
+                },
+            )
+            // None if cmd is empty
+            .filter(|(cmd, _)| !cmd.is_empty())
+            // cmd str to string
+            .and_then(|(cmd, detached)| Some((cmd.wlstr_clone_to_string()?, detached)))
     }
 
     // parse each arg and do processing
-    fn parse_args<T: WLStr>(args: &[T]) -> Vec<String> {
-        match std::env::var(ENVFLAG_NO_ARGCONV).is_err() {
-            // default: convert args
+    fn parse_args<T: WLStr>(args: &[T], convert: bool) -> Vec<String> {
+        match convert {
+            // convert args
             true => args.iter().map(Self::convert_arg_to_wsl_arg).collect(),
-            // if NO_ARGCONV flag set, no conversion
+            // no conversion
             false => args
                 .iter()
                 .map(|t| t.wlstr_as_ref().unwrap_or_default().to_owned())
@@ -273,8 +353,8 @@ impl WslCmd {
         envfile_list
             .iter()
             .map(|s| ["if", "test", "-r", s, ";", "then", ".", s, ";", "fi;"].to_vec())
-            .collect::<Vec<Vec<&str>>>() // vec of vec
-            .concat() // flatten to vec
+            .collect::<Vec<Vec<&str>>>()
+            .concat()
     }
 }
 
@@ -352,12 +432,12 @@ impl WslCmdExitStatus {
 #[cfg(test)]
 /// For module test
 mod test {
-    use super::{WslCmd, WslCmdExitStatus, CMDNAME_DELIM};
+    use super::{WslCmd, WslCmdExitStatus, DETACHED_PROC_PREFIX};
 
     #[test]
     fn test_execute_true() {
         // create WslCmd & run test
-        WslCmd::new(&["true"])
+        WslCmd::new("true")
             .expect("New WslCmd")
             .execute()
             .expect("Execute WslCmd - true");
@@ -366,7 +446,7 @@ mod test {
     #[test]
     fn test_execute_false() {
         // create WslCmd & run test
-        WslCmd::new(&["false"])
+        WslCmd::new("false")
             .expect("New WslCmd")
             .execute()
             .expect_err("Execute WslCmd - false");
@@ -375,7 +455,7 @@ mod test {
     #[test]
     fn test_execute_false_detached() {
         // create WslCmd & run test
-        WslCmd::new(&[format!("{}false", CMDNAME_DELIM)])
+        WslCmd::new(format!("{}false", DETACHED_PROC_PREFIX))
             .expect("New WslCmd")
             .execute()
             .expect("Execute WslCmd - false (detached)");
@@ -384,8 +464,9 @@ mod test {
     #[test]
     fn test_execute_wslpath() {
         // create WslCmd & run test
-        WslCmd::new(&["command", "-v", "wslpath"])
+        WslCmd::new("command")
             .expect("New WslCmd")
+            .args(&["-v", "wslpath"], false)
             .execute_with_stdin(Some("")) // no child output while testing
             // only for debug: bypass exit_status, with printing outputs
             .map_or_else(
@@ -408,7 +489,7 @@ mod test {
         const INPUT: &str = "With cat, stdin and stdout should be the same";
 
         // create WslCmd & run test
-        WslCmd::new(&["cat"])
+        WslCmd::new("cat")
             .expect("New WslCmd")
             .execute_with_stdin(Some(INPUT)) // set input, and no child output
             // only for debug: bypass exit_status, with printing outputs

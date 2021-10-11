@@ -163,14 +163,14 @@ Then, append the folder path (where the executable exists) to Windows 'PATH' env
 
 ### Detached process mode (GUI program mode)
 - **Note that 'Linux GUI server for Windows' (WSLg, VcXsrv, etc.) is required for running GUI programs!**
-- When creating a command, additional command with prepended `!` is also created internally
-- Running a command starting with an `!` will run the command as a detached, backgroud process
+- When creating a command, additional command with prepended `.` is also created internally
+- Running a command starting with an `.` will run the command as a detached, backgroud process
   - Detached background process here does not tied to the running shell, so you can close the shell after running it
   - This is useful when you want to execute GUI program of WSL
   - *Ex)*
     - `wsllink new emacs`        *(Create new links to WSL command 'emacs')*
-    - `!emacs bin\test.txt`      *(run 'emacs' at background)*
-- Make a shortcut link (.lnk) to the command file `(command-name).exe` (**NOT a `!(command-name).exe` file!**) or run it directly, to run GUI programs with mouse click
+    - `.emacs bin\test.txt`      *(run 'emacs' at background, and detach)*
+- Make a shortcut link (.lnk) to the command file `(command-name).exe` (**NOT a `.(command-name).exe` file!**) or run it directly, to run GUI programs with mouse click
   - *Ex)*
     - *Add WSL GUI programs to Windows start menu as Windows program*
       1. Go to the folder where the WslLink script exists
@@ -196,13 +196,12 @@ Then, append the folder path (where the executable exists) to Windows 'PATH' env
 By formatting command name when creating and executing a command, running WSL commands as different WSL user or distribution is also possible.
 
 Formatting is done by the delimiter `!` (which has no problem to be executed as a command-name on cmd, powershell, and bash). Empty field will be set to default. Detailed full-format of the command name is as follows:
-- Normal process mode: `<command-name>!<user-name>!<dist-name>`
+- `<command-name>!<user-name>!<dist-name>`
   - *Ex) Running command as...*
     - Default user & Default dist: `command`
     - User 'john' & Default dist: `command!john`
     - Default user & Dist 'Ubuntu': `command!!ubuntu`
     - User 'john' & Disk 'Debian': `command!john!debian`
-- Detached process mode: Same as normal process mode above, but an additional `!` is prepended to it.
 - Usage *Ex)*
   ```
   C:\>wsllink l

@@ -9,7 +9,7 @@ use std::ops::*;
 use std::path::PathBuf;
 use std::time::SystemTime;
 
-use super::CMDNAME_DELIM;
+use super::DETACHED_PROC_PREFIX;
 
 /// Extension of Windows binary
 const BINARY_EXTENSION: &str = "exe";
@@ -22,7 +22,7 @@ macro_rules! wslcmd_with_ext {
 
 macro_rules! wslcmd_detached_bin {
     ($label:expr) => {
-        format!("{}{}", CMDNAME_DELIM, $label)
+        format!("{}{}", DETACHED_PROC_PREFIX, $label)
     };
 }
 
@@ -120,7 +120,7 @@ impl WslCmdList {
                     }
                     .bitand({
                         // cmdname is not detached cmd name pattern (starts with cmdname_delim
-                        !s_cmd.starts_with(CMDNAME_DELIM)
+                        !s_cmd.starts_with(DETACHED_PROC_PREFIX)
                     })
                 })
                 // bool -> Result
@@ -222,7 +222,7 @@ impl WslCmdList {
                     }
                     .bitand({
                         // cmdname is not detached cmd name pattern (starts with cmdname_delim
-                        !s_cmd.starts_with(CMDNAME_DELIM)
+                        !s_cmd.starts_with(DETACHED_PROC_PREFIX)
                     })
                 })
                 // bool -> Result
@@ -384,8 +384,10 @@ impl WslCmdList {
                 .bitand({
                     // bool expression
                     {
-                        // not starting with CMDNAME_DELIM
-                        !pb_symlink.wlpath_filename()?.starts_with(CMDNAME_DELIM)
+                        // not starting with DETACHED_PROC_PREFIX
+                        !pb_symlink
+                            .wlpath_filename()?
+                            .starts_with(DETACHED_PROC_PREFIX)
                     }
                     .bitand(
                         // link behind the current file is detached bin symlink
@@ -432,7 +434,7 @@ impl fmt::Display for WslCmdList {
 /// For module test
 mod test {
     use super::super::{WLPath, WLStr};
-    use super::{WslCmdList, BINARY_EXTENSION, CMDNAME_DELIM};
+    use super::{WslCmdList, BINARY_EXTENSION, DETACHED_PROC_PREFIX};
     use std::io;
     use std::io::{Error, ErrorKind};
     use std::ops::*;

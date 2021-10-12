@@ -758,8 +758,12 @@ mod test {
 
     fn unit_test_list<T: WLStr>(wslcmd_list: &WslCmdList, expected_result: &[T]) -> io::Result<()> {
         // convert cmdlist in wslcmd_list to basenamed result
-        let cmdlist_basename: HashSet<_> =
-            HashSet::from_iter(wslcmd_list.cmdlist().iter().map(|pb| pb.wlpath_basename()));
+        let cmdlist_basename: HashSet<_> = HashSet::from_iter(
+            wslcmd_list
+                .get_cmdlist()
+                .iter()
+                .map(|pb| pb.wlpath_basename()),
+        );
         //dbg!(&cmdlist_basename);
 
         // convert expected list to basenamed result

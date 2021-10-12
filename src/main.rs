@@ -1,5 +1,5 @@
 #![crate_type = "bin"]
-#![crate_name = "wsllink"]
+#![crate_name = "wslcmd"]
 #![windows_subsystem = "console"]
 
 /// Exporting macros for color print
@@ -12,19 +12,19 @@ mod dbg_print;
 
 /// A module for executing WSL commands
 mod execution_mode;
-/// A module for managing WslLink itself
+/// A module for managing WslCmd itself
 mod management_mode;
 
-/// Core routines of WslLink
-mod libwsllink;
-use libwsllink::WLPath;
-use libwsllink::WLStr;
+/// Core routines of WslCmd
+mod libwslcmd;
+use libwslcmd::WCPath;
+use libwslcmd::WCStr;
 
 /// Branch routine (Management/Execution mode),
 /// by checking if the binary is executed directly or through symlink
 fn main() {
     // debug msg
-    __wsllink_dbg!("* Executed in debug mode! Debug msgs will be printed. *");
+    __wslcmd_dbg!("* Executed in debug mode! Debug msgs will be printed. *");
 
     // init
     let args: Vec<String> = std::env::args().collect();
@@ -49,7 +49,7 @@ fn main() {
             Err(1)
         }
     };
-    __wsllink_dbg!("Child WSL proc exitcode", &exit_code); // debug msg
+    __wslcmd_dbg!("Child WSL proc exitcode", &exit_code); // debug msg
 
     // exit with exitcode
     std::process::exit(exit_code.map_or_else(|code| code, |_| 0));
@@ -57,20 +57,20 @@ fn main() {
 
 /// Check if execution mode,
 /// by (orig_binname != cmdline_binname)
-fn is_exemode<T: WLStr>(cmd_args: &[T]) -> Option<bool> {
+fn is_exemode<T: WCStr>(cmd_args: &[T]) -> Option<bool> {
     Some(
         // comparison
         {
             // current exe basename
             std::env::current_exe() // Result<PathBuf> link_or_bin_fullpath
                 .ok()? // return None if failed
-                .wlpath_canonicalize()? // resolve all links, return None if failed
-                .wlpath_basename() // slice basename
+                .wcpath_canonicalize()? // resolve all links, return None if failed
+                .wcpath_basename() // slice basename
         } != {
             // command-line basename
             cmd_args
                 .get(0)? // fullpath, return None if failed
-                .wlpath_basename() // slice basename
+                .wcpath_basename() // slice basename
         },
     )
 }

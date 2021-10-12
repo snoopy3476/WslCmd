@@ -4,29 +4,29 @@
 ///
 /// ```
 /// // print only label
-/// __wsllink_dbg!("label");
+/// __wslcmd_dbg!("label");
 ///
 /// // print label and vars (with dbg! macro)
-/// __wsllink_dbg!("label", var1, var2, ...);
+/// __wslcmd_dbg!("label", var1, var2, ...);
 ///
 /// // print only vars
 /// //   almost same with dbg!() macro,
 /// //   except that this macro only prints on debug mode
-/// __wsllink_dbg!(var1, var2, ...);
+/// __wslcmd_dbg!(var1, var2, ...);
 /// ```
 ///
 #[macro_export]
-macro_rules! __wsllink_dbg {
+macro_rules! __wslcmd_dbg {
 
     // for label-only
-    //   __wsllink_dbg!("label");
+    //   __wslcmd_dbg!("label");
     ($label:literal) => {
 
             // for debug mode
             #[cfg(debug_assertions)]
             {
                 // print header
-                crate::__wsllink_dbg_header!($label);
+                crate::__wslcmd_dbg_header!($label);
             }
 
             // for release mode
@@ -39,7 +39,7 @@ macro_rules! __wsllink_dbg {
     };
 
     // for label and vars
-    //   __wsllink_dbg!("label", var1, var2, ...);
+    //   __wslcmd_dbg!("label", var1, var2, ...);
     ($label:literal, $($args:expr), +) => {
         {
 
@@ -47,9 +47,9 @@ macro_rules! __wsllink_dbg {
             #[cfg(debug_assertions)]
             {
                 // print header
-                crate::__wsllink_dbg_header!($label);
+                crate::__wslcmd_dbg_header!($label);
                 // print body
-                crate::__wsllink_dbg_body!($($args),+)
+                crate::__wslcmd_dbg_body!($($args),+)
             }
 
             // for release mode
@@ -64,7 +64,7 @@ macro_rules! __wsllink_dbg {
 
 
     // for vars only
-    //   __wsllink_dbg!(var1, var2, ...);
+    //   __wslcmd_dbg!(var1, var2, ...);
     ($($args:expr), +) => {
         {
 
@@ -72,7 +72,7 @@ macro_rules! __wsllink_dbg {
             #[cfg(debug_assertions)]
             {
                 // print body
-                crate::__wsllink_dbg_body!($($args),+)
+                crate::__wslcmd_dbg_body!($($args),+)
             }
 
             // for release mode
@@ -86,10 +86,10 @@ macro_rules! __wsllink_dbg {
     };
 }
 
-/// Prints debug msg header only, if str is not empty (for the macro [`__wsllink_dbg`])
+/// Prints debug msg header only, if str is not empty (for the macro [`__wslcmd_dbg`])
 #[cfg(debug_assertions)]
 #[macro_export]
-macro_rules! __wsllink_dbg_header {
+macro_rules! __wslcmd_dbg_header {
     ($label:literal) => {
         #[cfg(debug_assertions)]
         {
@@ -105,7 +105,7 @@ macro_rules! __wsllink_dbg_header {
                 )
                 .ok();
             // print header
-            eprint!(" [WSLLINK_DBG] {} ", $label);
+            eprint!(" [WSLCMD_DBG] {} ", $label);
             // reset color
             stderr.reset().ok();
             eprintln!();
@@ -113,10 +113,10 @@ macro_rules! __wsllink_dbg_header {
     };
 }
 
-/// Prints debug msg body (args) only (for the macro [`__wsllink_dbg`])
+/// Prints debug msg body (args) only (for the macro [`__wslcmd_dbg`])
 #[cfg(debug_assertions)]
 #[macro_export]
-macro_rules! __wsllink_dbg_body {
+macro_rules! __wslcmd_dbg_body {
     ($($args:expr), +) => {
         #[cfg(debug_assertions)]
         {

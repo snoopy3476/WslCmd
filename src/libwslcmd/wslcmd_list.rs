@@ -1,6 +1,4 @@
-use derive_getters::Getters;
-
-use super::{WLPath, WLStr};
+use super::{WCPath, WCStr};
 use std::collections::HashSet;
 use std::ffi::OsStr;
 use std::io;
@@ -26,24 +24,20 @@ macro_rules! wslcmd_detached_bin {
     };
 }
 
-#[derive(Getters, Debug)]
+#[derive(Debug)]
 /// Read dir and load all wslcmds, and manage the list
 pub struct WslCmdList {
     /// Path of target bin
-    #[getter(rename = "get_binpath")]
     binpath: PathBuf,
 
     /// Path of original bin, after following all symlinks
-    #[getter(rename = "get_orig_binpath")]
     orig_binpath: PathBuf,
 
     /// Latest WslCmd list
-    #[getter(rename = "get_cmdlist")]
-    cmdlist: HashSet<String>,
+    cmdlist_cached: HashSet<String>,
 
     /// Time of WslCmd list data
-    #[getter(rename = "get_cmdlist_time")]
-    cmdlist_time: Option<SystemTime>,
+    cmdlist_cached_time: Option<SystemTime>,
 }
 
 impl WslCmdList {
@@ -52,7 +46,7 @@ impl WslCmdList {
     ///
     /// # Arguments
     ///
-    /// * `binpath` - A target wsllink bin path to get list of wslcmd
+    /// * `binpath` - A target wslcmd bin path to get list of wslcmd
     ///
     /// # Return
     ///
@@ -67,19 +61,19 @@ impl WslCmdList {
     /// ```
     ///
     #[allow(dead_code)]
-    pub fn new<T: WLPath>(binpath: &T) -> Option<Self> {
+    pub fn new<T: WCPath>(binpath: &T) -> Option<Self> {
         // initialize basic info
-        let binpath = binpath.wlpath_clone_to_pathbuf()?;
-        let orig_binpath = binpath.wlpath_canonicalize()?;
+        let binpath = binpath.wcpath_clone_to_pathbuf()?;
+        let orig_binpath = binpath.wcpath_canonicalize()?;
 
         // build struct instance
         let mut ret_self = Self {
             binpath,
             orig_binpath,
-            cmdlist: HashSet::new(), // dummy
-            cmdlist_time: None,      // dummy
+            cmdlist_cached: HashSet::new(), // dummy
+            cmdlist_cached_time: None,      // dummy
         };
-        ret_self.refresh_wslcmd_list(); // refresh cmdlist and time
+        ret_self.refresh_wslcmd_list(true); // refresh cmdlist and time
 
         Some(ret_self)
     }
@@ -102,11 +96,11 @@ impl WslCmdList {
     /// ```
     ///
     #[allow(dead_code)]
-    pub fn link_wslcmd<T: WLPath>(&mut self, cmdname: &T) -> io::Result<()> {
+    pub fn link_wslcmd<T: WCPath>(&mut self, cmdname: &T) -> io::Result<()> {
         // create new PathBuf of cmd: replace only filename with cmdname from binpath
         {
             cmdname
-                .wlpath_filename() // get filename only, discarding possible parent dir name
+                .wcpath_filename() // get filename only, discarding possible parent dir name
                 .and_then(|s_cmd| Some(wslcmd_with_ext!(s_cmd))) // append extension to cmdname
                 .and_then(|s_file| Some(self.binpath.with_file_name(s_file))) // to abs path
                 .ok_or(Error::new(ErrorKind::InvalidInput, "Invalid cmdname"))
@@ -114,8 +108,8 @@ impl WslCmdList {
         // Ok if valid cmdname
         .and_then(|pb_cmd| {
             self.orig_binpath
-                .wlpath_basename()
-                .and_then(|s_orig| pb_cmd.wlpath_filename().map(|s_cmd| (s_orig, s_cmd)))
+                .wcpath_basename()
+                .and_then(|s_orig| pb_cmd.wcpath_filename().map(|s_cmd| (s_orig, s_cmd)))
                 // bool expression
                 .map_or(false, |(s_orig, s_cmd)| {
                     {
@@ -147,7 +141,7 @@ impl WslCmdList {
             let wslcmd_detached_filename = wslcmd_detached_bin!(
                 // wslcmd filename
                 pb_cmd
-                    .wlpath_filename()
+                    .wcpath_filename()
                     .ok_or(Error::new(ErrorKind::Other, "Invalid cmdname"))?
             );
 
@@ -155,7 +149,7 @@ impl WslCmdList {
             std::os::windows::fs::symlink_file(
                 // target: origbin filename (relative)
                 self.binpath
-                    .wlpath_filename()
+                    .wcpath_filename()
                     .ok_or(Error::new(ErrorKind::Other, "Invalid exe name"))?,
                 // symlink file: wslcmd_detached (absolute)
                 &pb_cmd.with_file_name(&wslcmd_detached_filename),
@@ -181,7 +175,7 @@ impl WslCmdList {
         })
         // refresh wslcmd list if succeeded
         .and_then(|_| {
-            self.refresh_wslcmd_list();
+            self.refresh_wslcmd_list(true);
             Ok(())
         })
     }
@@ -204,11 +198,11 @@ impl WslCmdList {
     /// ```
     ///
     #[allow(dead_code)]
-    pub fn unlink_wslcmd<T: WLPath>(&mut self, cmdname: &T) -> io::Result<()> {
+    pub fn unlink_wslcmd<T: WCPath>(&mut self, cmdname: &T) -> io::Result<()> {
         // create new PathBuf of cmd: replace only filename with cmdname from binpath
         {
             cmdname
-                .wlpath_filename() // get filename only, discarding possible parent dir name
+                .wcpath_filename() // get filename only, discarding possible parent dir name
                 .and_then(|s_cmd| Some(wslcmd_with_ext!(s_cmd))) // append extension to cmdname
                 .and_then(|s_file| Some(self.binpath.with_file_name(s_file))) // to abs path
                 .ok_or(Error::new(ErrorKind::InvalidInput, "Invalid cmdname"))
@@ -216,8 +210,8 @@ impl WslCmdList {
         // Ok if valid cmdname
         .and_then(|pb_cmd| {
             self.orig_binpath
-                .wlpath_basename()
-                .and_then(|s_orig| pb_cmd.wlpath_filename().map(|s_cmd| (s_orig, s_cmd)))
+                .wcpath_basename()
+                .and_then(|s_orig| pb_cmd.wcpath_filename().map(|s_cmd| (s_orig, s_cmd)))
                 // bool expression
                 .map_or(false, |(s_orig, s_cmd)| {
                     {
@@ -261,7 +255,7 @@ impl WslCmdList {
             let wslcmd_detached_filename = wslcmd_detached_bin!(
                 // wslcmd filename
                 pb_cmd
-                    .wlpath_filename()
+                    .wcpath_filename()
                     .ok_or(Error::new(ErrorKind::Other, "Invalid cmdname"))?
             );
 
@@ -290,19 +284,40 @@ impl WslCmdList {
         })
         // refresh wslcmd list if succeeded
         .and_then(|_| {
-            self.refresh_wslcmd_list();
+            self.refresh_wslcmd_list(true);
             Ok(())
         })
     }
 
+    ///
+    /// Get list of WSL command links
+    ///
+    /// # Return
+    ///
+    /// List of WSL commands
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// let cmdlist: &HashSet<String> = wslcmd_list.get_cmdlist();
+    /// ```
+    ///
+    #[allow(dead_code)]
+    pub fn get_cmdlist(&mut self) -> &HashSet<String> {
+        &self.refresh_wslcmd_list(false).cmdlist_cached
+    }
+
     // refresh wslcmd list to latest. returns ref of mut self for chaining.
-    fn refresh_wslcmd_list(&mut self) -> &mut Self {
-        self.get_wslcmd_list_if_changed()
-            .and_then(|(cmdlist, cmdlist_time)| {
-                self.cmdlist = cmdlist;
-                self.cmdlist_time = cmdlist_time;
-                Some(())
-            });
+    fn refresh_wslcmd_list(&mut self, force_refresh: bool) -> &mut Self {
+        match force_refresh {
+            true => self.wslcmd_list(),
+            false => self.get_wslcmd_list_if_changed(),
+        }
+        .and_then(|(cmdlist, cmdlist_time)| {
+            self.cmdlist_cached = cmdlist;
+            self.cmdlist_cached_time = cmdlist_time;
+            Some(())
+        });
 
         self
     }
@@ -311,7 +326,7 @@ impl WslCmdList {
     fn get_wslcmd_list_if_changed(&self) -> Option<(HashSet<String>, Option<SystemTime>)> {
         self.binpath
             // get parent dir
-            .wlpath_parent()? // &Path
+            .wcpath_parent()? // &Path
             // get last modified time
             .metadata()
             .and_then(|md| md.modified())
@@ -319,42 +334,46 @@ impl WslCmdList {
             // Some(t) if to be refreshed
             .filter(|t_dir| {
                 // check if dir mtime is later than the time of cmdlist
-                self.cmdlist_time.map_or(true, |t_list| t_dir.gt(&t_list))
+                self.cmdlist_cached_time
+                    .map_or(true, |t_list| t_dir.gt(&t_list))
             })
             // return tuple (cmdlist, dir_mtime) if to be refreshed
-            .map_or(None, |t| Some((self.wslcmd_list(&self.binpath)?, Some(t))))
+            .and_then(|_| self.wslcmd_list())
     }
 
     // get list of wslcmd from the fs directly
-    fn wslcmd_list<T: WLPath>(&self, binpath: &T) -> Option<HashSet<String>> {
-        Some(
-            binpath
-                // get parent dir
-                .wlpath_parent()? // &Path
-                // get all file list
-                .wlpath_read_dir()? // Vec<PathBuf>
-                .into_iter()
-                // filter files with are only wslcmd
-                .filter_map(|pb_f| {
-                    self.is_wslcmd_file(&pb_f)
-                        .then(|| pb_f.wlpath_basename())
-                        .map_or(None, |s| s.wlstr_to_string())
-                }) // check if wslcmd
-                .collect(),
-        )
+    fn wslcmd_list(&self) -> Option<(HashSet<String>, Option<SystemTime>)> {
+        self.binpath
+            // get parent dir
+            .wcpath_parent()
+            .and_then(|dir| {
+                Some((
+                    // get all file list
+                    dir.wcpath_read_dir()? // Vec<PathBuf>
+                        .into_iter()
+                        // filter files with are only wslcmd
+                        .filter_map(|pb_f| {
+                            self.is_wslcmd_file(&pb_f)
+                                .then(|| pb_f.wcpath_basename())
+                                .map_or(None, |s| s.wcstr_to_string())
+                        }) // check if wslcmd
+                        .collect(),
+                    dir.metadata().and_then(|md| md.modified()).ok(),
+                ))
+            })
     }
 
     // check if given path is wslcmd link
-    fn is_wslcmd_file<T: WLPath>(&self, binpath: &T) -> bool {
+    fn is_wslcmd_file<T: WCPath>(&self, binpath: &T) -> bool {
         // binpath -> (pathbuf_target, pathbuf_followed)
         {
-            binpath.wlpath_as_path().and_then(|p| {
+            binpath.wcpath_as_path().and_then(|p| {
                 Some((
                     // pb_symlink
                     p.to_path_buf(),
                     // pb_target
                     p.read_link()
-                        .map_or(None, |pb| Some(p.with_file_name(pb.wlpath_as_ref()?)))?,
+                        .map_or(None, |pb| Some(p.with_file_name(pb.wcpath_as_ref()?)))?,
                 ))
             })
         }
@@ -374,11 +393,11 @@ impl WslCmdList {
                             }
                             .bitand({
                                 // ... and pointing to same bin
-                                pb.wlpath_canonicalize()? == self.orig_binpath
+                                pb.wcpath_canonicalize()? == self.orig_binpath
                             })
                             .bitand(
                                 // ... and not the original bin itself
-                                pb.wlpath_filename()? != self.binpath.wlpath_filename()?,
+                                pb.wcpath_filename()? != self.binpath.wcpath_filename()?,
                             )
                             .then(|| ()) // bool to Option
                         })
@@ -390,14 +409,14 @@ impl WslCmdList {
                     {
                         // not starting with DETACHED_PROC_PREFIX
                         !pb_symlink
-                            .wlpath_filename()?
+                            .wcpath_filename()?
                             .starts_with(DETACHED_PROC_PREFIX)
                     }
                     .bitand(
                         // link behind the current file is detached bin symlink
                         pb_target
                             == pb_target.with_file_name(wslcmd_detached_bin!(
-                                pb_symlink.wlpath_filename()?
+                                pb_symlink.wcpath_filename()?
                             )),
                     )
                 })
@@ -408,43 +427,17 @@ impl WslCmdList {
     }
 }
 
-use std::fmt;
-/// For display formatted print
-impl fmt::Display for WslCmdList {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        use itertools::Itertools;
-
-        // build string to be displayed
-        Some(
-            // get new list if self list data is outdated
-            self.get_wslcmd_list_if_changed()
-                .as_ref()
-                // if recent -> self data, if outdated -> new data
-                .map_or(&self.cmdlist, |tuple| &tuple.0)
-                // convert to basename and sort
-                .iter()
-                .filter_map(|pb| pb.wlpath_basename())
-                .sorted()
-                // join all wslcmd into one string
-                .join("'    '"), // wrap each cmdname with quotes
-        )
-        // write only if non-empty
-        .filter(|s| !s.is_empty()) // if empty, set to None
-        .map_or(Ok(()), |s| write!(f, "'{}'", s)) // write to f if not None
-    }
-}
-
 #[cfg(test)]
 /// For module test
 mod test {
-    use super::super::{WLPath, WLStr};
+    use super::super::{WCPath, WCStr};
     use super::{WslCmdList, BINARY_EXTENSION, DETACHED_PROC_PREFIX};
     use std::io;
     use std::io::{Error, ErrorKind};
     use std::ops::*;
     use std::{collections::HashSet, env, fs, iter::FromIterator, path::PathBuf};
 
-    const TEST_TMP_DIR: &str = "wsllink_tmpdir_test-wslcmd-list_";
+    const TEST_TMP_DIR: &str = "wslcmd_tmpdir_test-wslcmd-list_";
 
     #[derive(Debug)]
     enum TestKind {
@@ -499,12 +492,12 @@ mod test {
 
         // test linking only
         let mut wslcmd_list = WslCmdList::new(&bin1).expect("New WslCmdList");
-        unit_test_cmdlist(&wslcmd_list, &([] as [&str; 0])); // check when no other file
+        unit_test_cmdlist(&mut wslcmd_list, &([] as [&str; 0])); // check when no other file
         unit_test_mod(&tmpdir, &mut wslcmd_list, "testlink", false, TestKind::Link)
             .expect("List test prepare");
-        unit_test_cmdlist(&wslcmd_list, &["testlink"]);
+        unit_test_cmdlist(&mut wslcmd_list, &["testlink"]);
         new_dummy_file(&dummyfile); // new dummy file
-        unit_test_cmdlist(&wslcmd_list, &["testlink"]);
+        unit_test_cmdlist(&mut wslcmd_list, &["testlink"]);
 
         // clean tmpdir
         clean_tmpdir(TMPDIR_POSTFIX);
@@ -531,7 +524,7 @@ mod test {
             &mut wslcmd_list,
             &[("t", false), (&cmd1, true), ("emacs", false), (&cmd2, true)],
         );
-        unit_test_cmdlist(&wslcmd_list, &["emacs", "t"]);
+        unit_test_cmdlist(&mut wslcmd_list, &["emacs", "t"]);
 
         //  - test progress: bin1 -> t
         unit_test_unlink_wslcmd(
@@ -539,11 +532,11 @@ mod test {
             &mut wslcmd_list,
             &[("a", true), ("emacs", false), (&cmd1, true), (&cmd2, true)],
         );
-        unit_test_cmdlist(&wslcmd_list, &["t"]);
+        unit_test_cmdlist(&mut wslcmd_list, &["t"]);
 
         //  - test progress: bin1 -> (empty)
         unit_test_unlink_wslcmd(&tmpdir, &mut wslcmd_list, &[("t", false), ("t", true)]);
-        unit_test_cmdlist(&wslcmd_list, &([] as [&str; 0]));
+        unit_test_cmdlist(&mut wslcmd_list, &([] as [&str; 0]));
 
         // test with new bin2 -
         // check if bin1 and bin2 in the same dir are working separated on wslcmd_list
@@ -551,8 +544,8 @@ mod test {
 
         //  - test progress: bin1 -> t2, bin2 -> (empty)
         unit_test_link_wslcmd(&tmpdir, &mut wslcmd_list, &[("t2", false)]);
-        unit_test_cmdlist(&wslcmd_list, &["t2"]); // only list for wslcmd_list
-        unit_test_cmdlist(&wslcmd2_list, &([] as [&str; 0])); // only list for wslcmd2_list
+        unit_test_cmdlist(&mut wslcmd_list, &["t2"]); // only list for wslcmd_list
+        unit_test_cmdlist(&mut wslcmd2_list, &([] as [&str; 0])); // only list for wslcmd2_list
 
         //  - test progress: bin1 -> t2, bin2 -> t
         unit_test_link_wslcmd(
@@ -561,8 +554,8 @@ mod test {
             &[("t", false), ("t", true), ("t", true)],
         );
 
-        unit_test_cmdlist(&wslcmd_list, &["t2"]); // only list for wslcmd_list
-        unit_test_cmdlist(&wslcmd2_list, &["t"]); // only list for wslcmd2_list
+        unit_test_cmdlist(&mut wslcmd_list, &["t2"]); // only list for wslcmd_list
+        unit_test_cmdlist(&mut wslcmd2_list, &["t"]); // only list for wslcmd2_list
 
         // clean tmpdir
         clean_tmpdir(TMPDIR_POSTFIX);
@@ -585,7 +578,7 @@ mod test {
             // map cur-bin -> (dest-bin, cur-bin)
             .map_or(None, |pb| {
                 Some((
-                    tmpdir.join(wslcmd_with_ext!(binname.unwrap_or(&pb.wlpath_basename()?))),
+                    tmpdir.join(wslcmd_with_ext!(binname.unwrap_or(&pb.wcpath_basename()?))),
                     pb,
                 ))
             })
@@ -597,8 +590,8 @@ mod test {
             // pb_dest to (pb_dest, string_basename)
             .map_or(None, |pb_dest| {
                 pb_dest
-                    .wlpath_basename()
-                    .and_then(|s| s.wlstr_to_string())
+                    .wcpath_basename()
+                    .and_then(|s| s.wcstr_to_string())
                     .map(|s_base| (pb_dest, s_base))
             })
     }
@@ -643,7 +636,7 @@ mod test {
         }
     }
 
-    fn unit_test_cmdlist<T: WLStr>(wslcmd_list: &WslCmdList, expected_result: &[T]) {
+    fn unit_test_cmdlist<T: WCStr>(wslcmd_list: &mut WslCmdList, expected_result: &[T]) {
         unit_test_list(wslcmd_list, expected_result).expect("unit_test_cmdlist()")
     }
 
@@ -659,7 +652,7 @@ mod test {
         // get dir entries before call
         let dirent_before: HashSet<_> = HashSet::from_iter(
             tmpdir
-                .wlpath_read_dir()
+                .wcpath_read_dir()
                 .ok_or(Error::new(ErrorKind::Other, "Error on prepare"))?,
         );
 
@@ -673,7 +666,7 @@ mod test {
         // get dir entries after call
         let dirent_after: HashSet<_> = HashSet::from_iter(
             tmpdir
-                .wlpath_read_dir()
+                .wcpath_read_dir()
                 .ok_or(Error::new(ErrorKind::Other, "Error on prepare"))?,
         );
 
@@ -756,16 +749,21 @@ mod test {
         }
     }
 
-    fn unit_test_list<T: WLStr>(wslcmd_list: &WslCmdList, expected_result: &[T]) -> io::Result<()> {
+    fn unit_test_list<T: WCStr>(
+        wslcmd_list: &mut WslCmdList,
+        expected_result: &[T],
+    ) -> io::Result<()> {
         // convert cmdlist in wslcmd_list to basenamed result
-        let cmdlist_basename: HashSet<_> =
-            HashSet::from_iter(wslcmd_list.cmdlist().iter().map(|pb| pb.wlpath_basename()));
-        //dbg!(&cmdlist_basename);
+        let cmdlist_basename: &HashSet<String> = wslcmd_list.get_cmdlist();
+        dbg!(&cmdlist_basename);
 
         // convert expected list to basenamed result
-        let expected_list_basename: HashSet<_> =
-            HashSet::from_iter(expected_result.iter().map(|s| s.wlpath_basename()));
-        //dbg!(&expected_list_basename);
+        let expected_list_basename: HashSet<_> = HashSet::from_iter(
+            expected_result
+                .iter()
+                .filter_map(|s| s.wcpath_basename().wcstr_to_string()),
+        );
+        dbg!(&expected_list_basename);
 
         // get diff of expected and real result
         let list_diff = cmdlist_basename.symmetric_difference(&expected_list_basename);
@@ -777,15 +775,15 @@ mod test {
             .ok_or(Error::new(ErrorKind::Other, "Test validation failed"))
     }
 
-    fn new_dummy_file<T: WLPath>(fpath: &T) {
+    fn new_dummy_file<T: WCPath>(fpath: &T) {
         use std::fs::File;
         use std::io::prelude::*;
 
         fpath
-            .wlpath_as_ref()
+            .wcpath_as_ref()
             .ok_or(Error::new(ErrorKind::InvalidInput, "Arguments not valid"))
             .and_then(|s| File::create(s))
-            .and_then(|mut f| f.write_all(b"wsllink dummy"))
+            .and_then(|mut f| f.write_all(b"wslcmd dummy"))
             .expect("Dummy file creation");
     }
 }

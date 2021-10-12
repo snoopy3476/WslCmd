@@ -1,7 +1,7 @@
-/// Manages WslLink str
-mod wlstr;
-pub use wlstr::WLPath;
-pub use wlstr::WLStr;
+/// Manages WslCmd str
+mod wcstr;
+pub use wcstr::WCPath;
+pub use wcstr::WCStr;
 /// Converts Windows cmdline to WSL cmdline
 mod wslcmd;
 pub use wslcmd::WslCmd;
@@ -14,4 +14,4 @@ const DETACHED_PROC_PREFIX: char = '.';
 
 // prevent compilation at environments other than Windows
 #[cfg(not(target_os = "windows"))]
-compile_error!("WslLink only works on Windows target!");
+compile_error!("WslCmd only works on Windows target!");

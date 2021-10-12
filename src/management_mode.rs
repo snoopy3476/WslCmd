@@ -1,18 +1,18 @@
-use super::libwsllink::WLPath;
-use super::libwsllink::WslCmdList;
+use super::libwslcmd::WCPath;
+use super::libwslcmd::WslCmdList;
 
 /// Manage (add/del/list) linked WSL commands
 pub fn management_mode(args: &[String]) -> Result<(), i32> {
-    crate::__wsllink_dbg!("Management mode - cmdline args", &args); // debug
+    crate::__wslcmd_dbg!("Management mode - cmdline args", &args); // debug
 
     let binname = args
         .get(0)
-        .and_then(WLPath::wlpath_basename)
+        .and_then(WCPath::wcpath_basename)
         .unwrap_or_default();
 
     let mut wslcmd_list =
         std::env::current_exe().map_or_else(|_| Err(1), |pb| WslCmdList::new(&pb).ok_or(1))?;
-    crate::__wsllink_dbg!("Management mode - WslCmdList", &wslcmd_list); // debug
+    crate::__wslcmd_dbg!("Management mode - WslCmdList", &wslcmd_list); // debug
 
     // branch based on first arg
     match (
@@ -115,7 +115,6 @@ pub fn management_mode(args: &[String]) -> Result<(), i32> {
         (Some(op), None) => {
             // link
             if ["list", "ls"].iter().any(|s| s.starts_with(op)) {
-                use itertools::Itertools;
                 use std::io::Write;
                 use termcolor::{BufferWriter, Color, ColorChoice, ColorSpec, WriteColor};
 
@@ -126,9 +125,15 @@ pub fn management_mode(args: &[String]) -> Result<(), i32> {
                 // build and print wslcmd list string
                 {
                     // get iter of all sorted cmdlist
-                    Some(wslcmd_list.get_cmdlist().iter().sorted())
+                    Some(
+                        wslcmd_list
+                            .get_cmdlist()
+                            .iter()
+                            .collect::<std::collections::BinaryHeap<_>>()
+                            .into_sorted_vec(),
+                    )
                 }
-                .filter(|i| i.clone().count() > 0)
+                .filter(|v| v.len() > 0)
                 .map_or_else(
                     // if no entry
                     || {
@@ -136,12 +141,12 @@ pub fn management_mode(args: &[String]) -> Result<(), i32> {
                         true
                     },
                     // if WSL commands exist
-                    |mut i| {
+                    |v| {
                         // do for all list
-                        i.all(|pb| {
+                        v.into_iter().all(|pb| {
                             {
                                 // get basename of current cmdlist
-                                pb.wlpath_basename().ok_or(())
+                                pb.wcpath_basename().ok_or(())
                             }
                             .and_then(|s| {
                                 // if current string contains ws, wrap with '

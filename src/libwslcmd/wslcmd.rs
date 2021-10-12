@@ -1,7 +1,7 @@
 use derive_getters::Getters;
 
-use super::WLPath;
-use super::WLStr;
+use super::WCPath;
+use super::WCStr;
 
 use super::DETACHED_PROC_PREFIX;
 
@@ -56,7 +56,7 @@ impl WslCmd {
     /// ```
     ///
     #[allow(dead_code)]
-    pub fn new<T: WLStr>(cmdname: T) -> Option<Self> {
+    pub fn new<T: WCStr>(cmdname: T) -> Option<Self> {
         // parse cmd, return None if failed at this point
         let (command, is_detached_proc) = Self::parse_cmd(&cmdname)?;
 
@@ -94,7 +94,7 @@ impl WslCmd {
     /// ```
     ///
     #[allow(dead_code)]
-    pub fn args<T: WLStr>(mut self, args: &[T], convert_pathargs: bool) -> Self {
+    pub fn args<T: WCStr>(mut self, args: &[T], convert_pathargs: bool) -> Self {
         self.args = Self::parse_args(args, convert_pathargs);
 
         self
@@ -120,8 +120,8 @@ impl WslCmd {
     /// ```
     ///
     #[allow(dead_code)]
-    pub fn user<T: WLStr>(mut self, username: T) -> Self {
-        self.username = username.wlstr_clone_to_string();
+    pub fn user<T: WCStr>(mut self, username: T) -> Self {
+        self.username = username.wcstr_clone_to_string();
 
         self
     }
@@ -146,8 +146,8 @@ impl WslCmd {
     /// ```
     ///
     #[allow(dead_code)]
-    pub fn dist<T: WLStr>(mut self, distribution: T) -> Self {
-        self.distribution = distribution.wlstr_clone_to_string();
+    pub fn dist<T: WCStr>(mut self, distribution: T) -> Self {
+        self.distribution = distribution.wcstr_clone_to_string();
 
         self
     }
@@ -172,10 +172,10 @@ impl WslCmd {
     /// ```
     ///
     #[allow(dead_code)]
-    pub fn envfiles<T: WLStr>(mut self, file_list: &[T]) -> Self {
+    pub fn envfiles<T: WCStr>(mut self, file_list: &[T]) -> Self {
         self.envfiles = file_list
             .iter()
-            .map(|t| t.wlstr_clone_to_string().unwrap_or_default())
+            .map(|t| t.wcstr_clone_to_string().unwrap_or_default())
             .collect();
 
         self
@@ -320,10 +320,10 @@ impl WslCmd {
 
     // parse command name, to get (detached mode, command)
     // returns None if error (failed to get basename, command name is empty, ...)
-    fn parse_cmd<T: WLPath>(binname: &T) -> Option<(String, bool)> {
+    fn parse_cmd<T: WCPath>(binname: &T) -> Option<(String, bool)> {
         binname
             // get basename
-            .wlpath_basename()
+            .wcpath_basename()
             // basename to (cmd, detached)
             .and_then(
                 // test if starts with DETACHED_PROC_PREFIX
@@ -337,27 +337,27 @@ impl WslCmd {
             // None if cmd is empty
             .filter(|(cmd, _)| !cmd.is_empty())
             // cmd str to string
-            .and_then(|(cmd, detached)| Some((cmd.wlstr_clone_to_string()?, detached)))
+            .and_then(|(cmd, detached)| Some((cmd.wcstr_clone_to_string()?, detached)))
     }
 
     // parse each arg and do processing
-    fn parse_args<T: WLStr>(args: &[T], convert: bool) -> Vec<String> {
+    fn parse_args<T: WCStr>(args: &[T], convert: bool) -> Vec<String> {
         match convert {
             // convert args
             true => args.iter().map(Self::convert_arg_to_wsl_arg).collect(),
             // no conversion
             false => args
                 .iter()
-                .map(|t| t.wlstr_clone_to_string().unwrap_or_default())
+                .map(|t| t.wcstr_clone_to_string().unwrap_or_default())
                 .collect(),
         }
     }
 
     // arg -> wsl arg (mainly path conversion)
-    fn convert_arg_to_wsl_arg<T: WLStr>(arg: &T) -> String {
-        arg.wlstr_invoke(Self::arg_convert_and_unescape_backslashes)
+    fn convert_arg_to_wsl_arg<T: WCStr>(arg: &T) -> String {
+        arg.wcstr_invoke(Self::arg_convert_and_unescape_backslashes)
             // if arg_wrap_with_.. returns None, use input as output
-            .wlstr_invoke(|s| Self::arg_wslpath_wrap_if_abs(s).or(s.wlstr_clone_to_string()))
+            .wcstr_invoke(|s| Self::arg_wslpath_wrap_if_abs(s).or(s.wcstr_clone_to_string()))
             .unwrap_or_default()
     }
 
@@ -367,20 +367,20 @@ impl WslCmd {
     //        '\\' -> '\'
     //        '\\\' -> '\\'
     //        ...
-    fn arg_convert_and_unescape_backslashes<T: WLStr>(arg: &T) -> Option<String> {
-        arg.wlstr_replace_all_regex(
+    fn arg_convert_and_unescape_backslashes<T: WCStr>(arg: &T) -> Option<String> {
+        arg.wcstr_replace_all_regex(
             concat!(r"(?P<pre>(^|[^\\]))", r"\\", r"(?P<post>([^\\]|$))"),
             "$pre/$post",
         ) // '\' -> '/'
-        .wlstr_replace_all_regex(r"\\(?P<remain>\\+)", "$remain") // '\\...' -> '\...'
+        .wcstr_replace_all_regex(r"\\(?P<remain>\\+)", "$remain") // '\\...' -> '\...'
     }
 
     // if an argument an absolute path, just converting '\' -> '/' is not enough.
     // the arg starting with drive letter pattern should be converted into wsl path manually
     // using wslpath inside wsl.
-    fn arg_wslpath_wrap_if_abs<T: WLStr>(arg: &T) -> Option<String> {
-        arg.wlstr_as_ref()
-            .filter(|s| s.wlpath_is_absolute())
+    fn arg_wslpath_wrap_if_abs<T: WCStr>(arg: &T) -> Option<String> {
+        arg.wcstr_as_ref()
+            .filter(|s| s.wcpath_is_absolute())
             // escape ' inside quote-str, then wrap with wslpath substitution
             .map(|s| format!("$(wslpath '{}')", s.replace("'", r"'\''")))
     }

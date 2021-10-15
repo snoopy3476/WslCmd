@@ -1,11 +1,11 @@
-use super::libwsllink::{WLPath, WslCmd};
+use super::libwslcmd::{WCPath, WslCmd};
 
 /// Name of env arg, which prevent argument path conversion if set
-const ENVFLAG_NO_ARGCONV: &str = "WSLLINK_NO_ARGCONV";
+const ENVFLAG_NO_ARGCONV: &str = "WSLCMD_NO_ARGCONV";
 
 /// Convert Windows cmdline to WSL cmdline, then execute converted WSL command
 pub fn execution_mode(args: &[String]) -> Result<(), i32> {
-    __wsllink_dbg!("Execution mode - cmdline args", args); // debug msg
+    __wslcmd_dbg!("Execution mode - cmdline args", args); // debug msg
 
     // environment files to load with WSL shell before command execute
     let custom_envfiles = &[
@@ -61,7 +61,7 @@ const CMDNAME_DELIM: char = '!';
 fn parse_cmd(binname: &String) -> Option<(String, Option<String>, Option<String>)> {
     let mut it = {
         binname
-            .wlpath_basename()?
+            .wcpath_basename()?
             .split(CMDNAME_DELIM) // iterator by splitted binname
             .peekable()
     };

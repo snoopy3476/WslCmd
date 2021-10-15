@@ -14,7 +14,6 @@
 /// cprint!(Color::Red, "label {}", var);
 /// ```
 ///
-#[macro_export]
 macro_rules! cprint {
 
     ($color:expr, $label:literal) => {{
@@ -24,7 +23,7 @@ macro_rules! cprint {
         let buf_writer = termcolor::BufferWriter::stdout(termcolor::ColorChoice::Auto);
         let mut buf = buf_writer.buffer();
 
-        crate::__cprint_raw!($color, buf_writer, &mut buf, write!(buf, $label));
+        __cprint_raw!($color, buf_writer, &mut buf, write!(buf, $label));
         std::io::stdout().flush().ok();
     }};
 
@@ -35,7 +34,7 @@ macro_rules! cprint {
         let buf_writer = termcolor::BufferWriter::stdout(termcolor::ColorChoice::Auto);
         let mut buf = buf_writer.buffer();
 
-        crate::__cprint_raw!($color, buf_writer, &mut buf, write!(buf, $label, $($args), +));
+        __cprint_raw!($color, buf_writer, &mut buf, write!(buf, $label, $($args), +));
         std::io::stdout().flush().ok();
     }};
 }
@@ -56,7 +55,6 @@ macro_rules! cprint {
 /// cprintln!(Color::Red, "label {}", var);
 /// ```
 ///
-#[macro_export]
 macro_rules! cprintln {
 
     ($color:expr, $label:literal) => {{
@@ -65,7 +63,7 @@ macro_rules! cprintln {
         let buf_writer = termcolor::BufferWriter::stdout(termcolor::ColorChoice::Auto);
         let mut buf = buf_writer.buffer();
 
-        crate::__cprint_raw!($color, buf_writer, &mut buf, writeln!(buf, $label));
+        __cprint_raw!($color, buf_writer, &mut buf, writeln!(buf, $label));
     }};
 
     ($color:expr, $label:literal, $($args:expr), +) => {{
@@ -73,12 +71,11 @@ macro_rules! cprintln {
         let buf_writer = termcolor::BufferWriter::stdout(termcolor::ColorChoice::Auto);
         let mut buf = buf_writer.buffer();
 
-        crate::__cprint_raw!($color, buf_writer, &mut buf, writeln!(buf, $label, $($args), +));
+        __cprint_raw!($color, buf_writer, &mut buf, writeln!(buf, $label, $($args), +));
     }};
 }
 
 /// Raw print func for other cprint macros
-#[macro_export]
 macro_rules! __cprint_raw {
     ($color:expr, $buf_writer:expr, $buf:expr, $print_call:expr) => {{
         use std::io::Write;

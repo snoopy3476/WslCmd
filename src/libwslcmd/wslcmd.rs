@@ -1,9 +1,10 @@
+// crate
+use super::wcstr;
+use wcstr::*;
+
+// general
 use derive_getters::Getters;
-
-use super::WCPath;
-use super::WCStr;
-
-use super::DETACHED_PROC_PREFIX;
+use std::path::Path;
 
 #[derive(Getters, Debug)]
 /// Store input WSL cmdline info including arguments,
@@ -320,24 +321,21 @@ impl WslCmd {
 
     // parse command name, to get (detached mode, command)
     // returns None if error (failed to get basename, command name is empty, ...)
-    fn parse_cmd<T: WCPath>(binname: &T) -> Option<(String, bool)> {
+    fn parse_cmd<T: WCStr>(binname: &T) -> Option<(String, bool)> {
         binname
             // get basename
-            .wcpath_basename()
-            // basename to (cmd, detached)
-            .and_then(
-                // test if starts with DETACHED_PROC_PREFIX
-                |basename| match basename.chars().next()? == DETACHED_PROC_PREFIX {
-                    // detached proc: remove prefix from the basename -> cmd
-                    true => basename.get(1..).map(|cmd| (cmd, true)),
-                    // normal proc
-                    false => Some((basename, false)),
-                },
-            )
+            .wcpath_fstem()
+            // basename to (cmd, is_detached)
+            .and_then(|basename| match basename.wccmd_is_detached() {
+                // detached proc: remove prefix from the basename -> cmd
+                true => basename.get(1..).map(|cmd| (cmd, true)),
+                // normal proc
+                false => Some((basename, false)),
+            })
             // None if cmd is empty
             .filter(|(cmd, _)| !cmd.is_empty())
             // cmd str to string
-            .and_then(|(cmd, detached)| Some((cmd.wcstr_clone_to_string()?, detached)))
+            .and_then(|(cmd, is_detached)| Some((cmd.wcstr_clone_to_string()?, is_detached)))
     }
 
     // parse each arg and do processing
@@ -379,7 +377,7 @@ impl WslCmd {
     // the arg starting with drive letter pattern should be converted into wsl path manually
     // using wslpath inside wsl.
     fn arg_wslpath_wrap_if_abs<T: WCStr>(arg: &T) -> Option<String> {
-        arg.wcstr_as_ref()
+        arg.wcstr_as_str()
             .filter(|s| s.wcpath_is_absolute())
             // escape ' inside quote-str, then wrap with wslpath substitution
             .map(|s| format!("$(wslpath '{}')", s.replace("'", r"'\''")))
@@ -470,7 +468,8 @@ impl WslCmdExitStatus {
 #[cfg(test)]
 /// For module test
 mod test {
-    use super::{WslCmd, WslCmdExitStatus, DETACHED_PROC_PREFIX};
+    use super::wcstr::*;
+    use super::{WslCmd, WslCmdExitStatus};
 
     #[test]
     fn test_execute_true() {
@@ -493,7 +492,7 @@ mod test {
     #[test]
     fn test_execute_false_detached() {
         // create WslCmd & run test
-        WslCmd::new(format!("{}false", DETACHED_PROC_PREFIX))
+        WslCmd::new("false".wccmd_to_detached().wcstr_as_str())
             .expect("New WslCmd")
             .execute()
             .expect("Execute WslCmd - false (detached)");

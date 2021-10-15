@@ -1,4 +1,6 @@
-use super::libwslcmd::{WCPath, WslCmd};
+// crate
+use super::libwslcmd::wcstr::*;
+use super::libwslcmd::WslCmd;
 
 /// Name of env arg, which prevent argument path conversion if set
 const ENVFLAG_NO_ARGCONV: &str = "WSLCMD_NO_ARGCONV";
@@ -58,16 +60,18 @@ const CMDNAME_DELIM: char = '!';
 
 // parse command name, to get (detached mode, command, user)
 // returns None if error (failed to get basename, command name is empty)
-fn parse_cmd(binname: &String) -> Option<(String, Option<String>, Option<String>)> {
-    let mut it = {
-        binname
-            .wcpath_basename()?
-            .split(CMDNAME_DELIM) // iterator by splitted binname
-            .peekable()
-    };
-    Some((
-        it.next().map(String::from).filter(|s| !s.is_empty())?, // command, must not empty
-        it.next().map(String::from).filter(|s| !s.is_empty()),  // user
-        it.next().map(String::from).filter(|s| !s.is_empty()),  // distribution
-    ))
+fn parse_cmd<T: WCStr>(binname: T) -> Option<(String, Option<String>, Option<String>)> {
+    binname
+        .wcpath_fstem()
+        .map(|cmd| {
+            cmd.split(CMDNAME_DELIM) // iterator by splitted binname
+                .peekable()
+        })
+        .and_then(|mut it| {
+            Some((
+                it.next().map(String::from).filter(|s| !s.is_empty())?, // command, must not empty
+                it.next().map(String::from).filter(|s| !s.is_empty()),  // user
+                it.next().map(String::from).filter(|s| !s.is_empty()),  // distribution
+            ))
+        })
 }

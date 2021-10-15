@@ -17,8 +17,7 @@ mod management_mode;
 
 /// Core routines of WslCmd
 mod libwslcmd;
-use libwslcmd::WCPath;
-use libwslcmd::WCStr;
+use libwslcmd::wcstr::*;
 
 /// Branch routine (Management/Execution mode),
 /// by checking if the binary is executed directly or through symlink
@@ -30,7 +29,7 @@ fn main() {
     let args: Vec<String> = std::env::args().collect();
 
     // call either mode, then get exitcode
-    let exit_code = match is_exemode(&args) {
+    let exit_code = match is_exemode(args.get(0)) {
         // comparison succeeded
         Some(ret) => {
             match ret {
@@ -57,7 +56,7 @@ fn main() {
 
 /// Check if execution mode,
 /// by (orig_binname != cmdline_binname)
-fn is_exemode<T: WCStr>(cmd_args: &[T]) -> Option<bool> {
+fn is_exemode<T: WCStr>(cmdname: T) -> Option<bool> {
     Some(
         // comparison
         {
@@ -65,12 +64,10 @@ fn is_exemode<T: WCStr>(cmd_args: &[T]) -> Option<bool> {
             std::env::current_exe() // Result<PathBuf> link_or_bin_fullpath
                 .ok()? // return None if failed
                 .wcpath_canonicalize()? // resolve all links, return None if failed
-                .wcpath_basename() // slice basename
+                .wcpath_fstem() // slice basename
         } != {
             // command-line basename
-            cmd_args
-                .get(0)? // fullpath, return None if failed
-                .wcpath_basename() // slice basename
+            cmdname.wcpath_fstem() // slice basename
         },
     )
 }

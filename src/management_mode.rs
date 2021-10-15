@@ -1,18 +1,18 @@
-use super::libwslcmd::WCPath;
+use super::libwslcmd::wcstr::*;
 use super::libwslcmd::WslCmdList;
 
 /// Manage (add/del/list) linked WSL commands
 pub fn management_mode(args: &[String]) -> Result<(), i32> {
-    crate::__wslcmd_dbg!("Management mode - cmdline args", &args); // debug
+    __wslcmd_dbg!("Management mode - cmdline args", &args); // debug
 
     let binname = args
         .get(0)
-        .and_then(WCPath::wcpath_basename)
+        .and_then(WCPathBase::wcpath_fstem)
         .unwrap_or_default();
 
     let mut wslcmd_list =
         std::env::current_exe().map_or_else(|_| Err(1), |pb| WslCmdList::new(&pb).ok_or(1))?;
-    crate::__wslcmd_dbg!("Management mode - WslCmdList", &wslcmd_list); // debug
+    __wslcmd_dbg!("Management mode - WslCmdList", &wslcmd_list); // debug
 
     // branch based on first arg
     match (
@@ -106,7 +106,7 @@ pub fn management_mode(args: &[String]) -> Result<(), i32> {
             }
             // default
             else {
-                print_help(binname);
+                print_help(&binname);
                 Err(-1) // return err
             }
         }
@@ -143,38 +143,25 @@ pub fn management_mode(args: &[String]) -> Result<(), i32> {
                     // if WSL commands exist
                     |v| {
                         // do for all list
-                        v.into_iter().all(|pb| {
+                        v.into_iter().all(|s| {
+                            // if current string contains ws, wrap with '
                             {
-                                // get basename of current cmdlist
-                                pb.wcpath_basename().ok_or(())
+                                s.contains(char::is_whitespace)
+                                    .then(|| ("'", "'")) // wrapper front/back
+                                    .or_else(|| Some(("", ""))) // no wrapper
                             }
-                            .and_then(|s| {
-                                // if current string contains ws, wrap with '
-                                {
-                                    s.contains(char::is_whitespace)
-                                        .then(|| ("'", "'")) // wrapper front/back
-                                        .or_else(|| Some(("", ""))) // no wrapper
-                                }
-                                // print using 's' and 'wrap_*' data
-                                .map_or(
-                                    Ok(()),
-                                    |(wrap_front, wrap_back)| {
-                                        // write list to buf
-                                        write!(&mut buf, "{}", wrap_front)
-                                            .and_then(|_| {
-                                                buf.set_color(
-                                                    ColorSpec::new().set_fg(Some(Color::Green)),
-                                                )
-                                            })
-                                            .and_then(|_| write!(&mut buf, "{}", s))
-                                            .and_then(|_| {
-                                                buf.set_color(ColorSpec::new().set_reset(true))
-                                            })
-                                            .and_then(|_| write!(&mut buf, "{}", wrap_back))
-                                            .and_then(|_| write!(&mut buf, "\t"))
-                                            .map_err(|_| ())
-                                    },
-                                )
+                            // print using 's' and 'wrap_*' data
+                            .map_or(Ok(()), |(wrap_front, wrap_back)| {
+                                // write list to buf
+                                write!(&mut buf, "{}", wrap_front)
+                                    .and_then(|_| {
+                                        buf.set_color(ColorSpec::new().set_fg(Some(Color::Green)))
+                                    })
+                                    .and_then(|_| write!(&mut buf, "{}", s))
+                                    .and_then(|_| buf.set_color(ColorSpec::new().set_reset(true)))
+                                    .and_then(|_| write!(&mut buf, "{}", wrap_back))
+                                    .and_then(|_| write!(&mut buf, "\t"))
+                                    .map_err(|_| ())
                             })
                             .is_ok()
                         })
@@ -196,14 +183,14 @@ pub fn management_mode(args: &[String]) -> Result<(), i32> {
             }
             // default
             else {
-                print_help(binname);
+                print_help(&binname);
                 Err(-1) // return err
             }
         }
 
         // default
         _ => {
-            print_help(binname);
+            print_help(&binname);
             Err(-1) // return err
         }
     }
